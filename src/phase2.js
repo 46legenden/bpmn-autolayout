@@ -403,3 +403,114 @@ export function createCrossLaneWaypoints(flowId, sourceId, targetId, positions, 
     }
   ];
 }
+
+/**
+ * Assign position for cross-lane flow with blocked path (Rule 4)
+ * Target element gets layer + 1 from source element
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Current positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @returns {Object} - { lane, layer, row }
+ */
+export function assignCrossLaneBlockedPosition(sourceId, targetId, positions, elementLanes) {
+  const sourcePos = positions.get(sourceId);
+  const targetLane = elementLanes.get(targetId);
+
+  return {
+    lane: targetLane,
+    layer: sourcePos.layer + 1,  // Layer + 1 because path is blocked
+    row: 0  // Default row
+  };
+}
+
+/**
+ * Sort gateway outputs by target lane position
+ * Outputs going in oppCrossLane direction come first, then same lane, then crossLane direction
+ * @param {Array} outputFlowIds - Array of output flow IDs
+ * @param {Map} flows - Flow map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} lanes - Lane map
+ * @param {string} gatewayLane - Gateway's lane ID
+ * @returns {Array} - Sorted array of flow IDs
+ */
+export function sortGatewayOutputs(outputFlowIds, flows, elementLanes, lanes, gatewayLane) {
+  const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
+
+  return outputFlowIds.slice().sort((flowIdA, flowIdB) => {
+    const flowA = flows.get(flowIdA);
+    const flowB = flows.get(flowIdB);
+
+    const targetLaneA = elementLanes.get(flowA.targetRef);
+    const targetLaneB = elementLanes.get(flowB.targetRef);
+
+    const targetIndexA = getLaneIndex(targetLaneA, lanes);
+    const targetIndexB = getLaneIndex(targetLaneB, lanes);
+
+    // Sort by lane index: lower index (oppCrossLane) first, higher index (crossLane) last
+    return targetIndexA - targetIndexB;
+  });
+}
+
+/**
+ * Assign symmetric rows for gateway outputs
+ * 2 outputs: [0, 1]
+ * 3 outputs: [-1, 0, 1]
+ * 4 outputs: [-1, 0, 1, 2]
+ * etc.
+ * @param {number} outputCount - Number of outputs
+ * @returns {Array} - Array of row numbers
+ */
+export function assignSymmetricRows(outputCount) {
+  const rows = [];
+  
+  if (outputCount === 1) {
+    return [0];
+  }
+  
+  if (outputCount === 2) {
+    return [0, 1];
+  }
+  
+  // For 3+ outputs, center around 0
+  const half = Math.floor(outputCount / 2);
+  const start = outputCount % 2 === 0 ? -half + 1 : -half;
+  
+  for (let i = 0; i < outputCount; i++) {
+    rows.push(start + i);
+  }
+  
+  return rows;
+}
+
+/**
+ * Assign positions for gateway outputs (Rule 5)
+ * All outputs get layer + 1, with symmetric row assignments
+ * @param {string} gatewayId - Gateway element ID
+ * @param {Array} outputFlowIds - Sorted array of output flow IDs
+ * @param {Map} positions - Current positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} flows - Flow map
+ * @returns {Map} - Map of targetId → { lane, layer, row }
+ */
+export function assignGatewayOutputPositions(gatewayId, outputFlowIds, positions, elementLanes, flows) {
+  const gatewayPos = positions.get(gatewayId);
+  const outputPositions = new Map();
+  
+  const rows = assignSymmetricRows(outputFlowIds.length);
+  
+  for (let i = 0; i < outputFlowIds.length; i++) {
+    const flowId = outputFlowIds[i];
+    const flow = flows.get(flowId);
+    const targetId = flow.targetRef;
+    const targetLane = elementLanes.get(targetId);
+    
+    outputPositions.set(targetId, {
+      lane: targetLane,
+      layer: gatewayPos.layer + 1,
+      row: gatewayPos.row + rows[i]  // Offset from gateway's row
+    });
+  }
+  
+  return outputPositions;
+}

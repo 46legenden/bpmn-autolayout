@@ -13,7 +13,11 @@ import {
   createSameLaneWaypoints,
   isCrossLanePathFree,
   assignCrossLaneFreePosition,
-  createCrossLaneWaypoints
+  createCrossLaneWaypoints,
+  assignCrossLaneBlockedPosition,
+  sortGatewayOutputs,
+  assignSymmetricRows,
+  assignGatewayOutputPositions
 } from '../../src/phase2.js';
 
 describe('Phase 2: Configuration', () => {
@@ -503,5 +507,179 @@ describe('Phase 2: Rule 3 - Cross-Lane Free Path', () => {
     expect(waypoints[0].side).toBe('right');  // alongLane (going right)
     expect(waypoints[1].side).toBe('down');   // crossLane (bending down)
     expect(waypoints[2].side).toBe('up');     // oppCrossLane (coming from up)
+  });
+});
+
+
+describe('Phase 2: Rule 4 - Cross-Lane Blocked Path', () => {
+  test('should assign layer + 1 for cross-lane blocked path', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const position = assignCrossLaneBlockedPosition('task1', 'task2', positions, elementLanes);
+
+    expect(position.lane).toBe('lane2');
+    expect(position.layer).toBe(1);  // Layer + 1 because blocked
+  });
+
+  test('should use L-shape waypoints for blocked cross-lane (different layers)', () => {
+    // Blocked path means different layers, so waypoints are L-shape
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task2', { lane: 'lane2', layer: 1, row: 0 }]  // Different layer
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }]
+    ]);
+
+    const directions = {
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const waypoints = createCrossLaneWaypoints('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
+
+    expect(waypoints.length).toBe(3);  // L-shape
+    expect(waypoints[0].side).toBe('right');  // alongLane
+    expect(waypoints[1].side).toBe('down');   // crossLane
+    expect(waypoints[2].side).toBe('up');     // oppCrossLane
+  });
+
+  test('should increment layer even if source is at higher layer', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 5, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const position = assignCrossLaneBlockedPosition('task1', 'task2', positions, elementLanes);
+
+    expect(position.layer).toBe(6);  // 5 + 1
+  });
+});
+
+
+describe('Phase 2: Rule 5 - Gateway Output Sorting and Positioning', () => {
+  test('should sort gateway outputs by target lane (oppCrossLane first, crossLane last)', () => {
+    const outputFlowIds = ['flow1', 'flow2', 'flow3'];
+    
+    const flows = new Map([
+      ['flow1', { id: 'flow1', sourceRef: 'gw1', targetRef: 'task1' }],  // Lane 2 (middle)
+      ['flow2', { id: 'flow2', sourceRef: 'gw1', targetRef: 'task2' }],  // Lane 1 (up)
+      ['flow3', { id: 'flow3', sourceRef: 'gw1', targetRef: 'task3' }]   // Lane 3 (down)
+    ]);
+    
+    const elementLanes = new Map([
+      ['gw1', 'lane2'],
+      ['task1', 'lane2'],
+      ['task2', 'lane1'],
+      ['task3', 'lane3']
+    ]);
+    
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }],
+      ['lane3', { id: 'lane3' }]
+    ]);
+    
+    const sorted = sortGatewayOutputs(outputFlowIds, flows, elementLanes, lanes, 'lane2');
+    
+    expect(sorted[0]).toBe('flow2');  // Lane 1 (up) first
+    expect(sorted[1]).toBe('flow1');  // Lane 2 (same) middle
+    expect(sorted[2]).toBe('flow3');  // Lane 3 (down) last
+  });
+  
+  test('should assign symmetric rows for 2 outputs', () => {
+    const rows = assignSymmetricRows(2);
+    
+    expect(rows).toEqual([0, 1]);
+  });
+  
+  test('should assign symmetric rows for 3 outputs', () => {
+    const rows = assignSymmetricRows(3);
+    
+    expect(rows).toEqual([-1, 0, 1]);
+  });
+  
+  test('should assign symmetric rows for 4 outputs', () => {
+    const rows = assignSymmetricRows(4);
+    
+    expect(rows).toEqual([-1, 0, 1, 2]);
+  });
+  
+  test('should assign symmetric rows for 5 outputs', () => {
+    const rows = assignSymmetricRows(5);
+    
+    expect(rows).toEqual([-2, -1, 0, 1, 2]);
+  });
+  
+  test('should assign positions for gateway outputs with layer + 1', () => {
+    const positions = new Map([
+      ['gw1', { lane: 'lane1', layer: 0, row: 0 }]
+    ]);
+    
+    const outputFlowIds = ['flow1', 'flow2'];
+    
+    const flows = new Map([
+      ['flow1', { id: 'flow1', sourceRef: 'gw1', targetRef: 'task1' }],
+      ['flow2', { id: 'flow2', sourceRef: 'gw1', targetRef: 'task2' }]
+    ]);
+    
+    const elementLanes = new Map([
+      ['gw1', 'lane1'],
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+    
+    const outputPositions = assignGatewayOutputPositions('gw1', outputFlowIds, positions, elementLanes, flows);
+    
+    expect(outputPositions.get('task1').layer).toBe(1);  // Layer + 1
+    expect(outputPositions.get('task2').layer).toBe(1);  // Layer + 1
+  });
+  
+  test('should assign symmetric rows for gateway outputs', () => {
+    const positions = new Map([
+      ['gw1', { lane: 'lane2', layer: 0, row: 0 }]
+    ]);
+    
+    const outputFlowIds = ['flow1', 'flow2', 'flow3'];
+    
+    const flows = new Map([
+      ['flow1', { id: 'flow1', sourceRef: 'gw1', targetRef: 'task1' }],
+      ['flow2', { id: 'flow2', sourceRef: 'gw1', targetRef: 'task2' }],
+      ['flow3', { id: 'flow3', sourceRef: 'gw1', targetRef: 'task3' }]
+    ]);
+    
+    const elementLanes = new Map([
+      ['gw1', 'lane2'],
+      ['task1', 'lane1'],
+      ['task2', 'lane2'],
+      ['task3', 'lane3']
+    ]);
+    
+    const outputPositions = assignGatewayOutputPositions('gw1', outputFlowIds, positions, elementLanes, flows);
+    
+    // Rows should be [-1, 0, 1] for 3 outputs
+    expect(outputPositions.get('task1').row).toBe(-1);  // First output
+    expect(outputPositions.get('task2').row).toBe(0);   // Second output
+    expect(outputPositions.get('task3').row).toBe(1);   // Third output
   });
 });
