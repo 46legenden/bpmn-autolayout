@@ -514,3 +514,94 @@ export function assignGatewayOutputPositions(gatewayId, outputFlowIds, positions
   
   return outputPositions;
 }
+
+/**
+ * Create waypoints for back-flow (loop)
+ * Back-flows go in oppAlongLane direction (backwards)
+ * @param {string} flowId - Flow ID
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID (loop target)
+ * @param {Map} positions - Positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} lanes - Lane map
+ * @param {Object} directions - Direction mappings
+ * @returns {Array} - Array of logical waypoints
+ */
+export function createBackFlowWaypoints(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
+  const sourcePos = positions.get(sourceId);
+  const targetPos = positions.get(targetId);
+
+  const sourceLane = elementLanes.get(sourceId);
+  const targetLane = elementLanes.get(targetId);
+
+  // Same lane back-flow
+  if (sourceLane === targetLane) {
+    return [
+      // Start: source element, oppAlongLane side (going backwards)
+      {
+        lane: sourcePos.lane,
+        layer: sourcePos.layer,
+        row: sourcePos.row,
+        side: directions.oppAlongLane
+      },
+      // End: target element, alongLane side (coming from right/down)
+      {
+        lane: targetPos.lane,
+        layer: targetPos.layer,
+        row: targetPos.row,
+        side: directions.alongLane
+      }
+    ];
+  }
+
+  // Cross-lane back-flow
+  // For back-flows, the cross direction is INVERTED
+  // (we're going backwards, so if forward would be crossLane, backward is oppCrossLane)
+  const forwardCrossDirection = getCrossLaneDirection(
+    { sourceRef: sourceId, targetRef: targetId },
+    elementLanes,
+    lanes,
+    directions
+  );
+
+  // Invert the direction for back-flow
+  const crossSide = forwardCrossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
+  const oppCrossSide = forwardCrossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
+
+  // Back-flow goes: oppAlongLane → oppCrossLane → alongLane (or similar)
+  // We need to go backwards (oppAlongLane) then change lanes
+  
+  return [
+    // Start: source element, oppAlongLane side (going backwards)
+    {
+      lane: sourcePos.lane,
+      layer: sourcePos.layer,
+      row: sourcePos.row,
+      side: directions.oppAlongLane
+    },
+    // Corner: target layer, source lane, oppCrossLane side
+    {
+      lane: sourceLane,
+      layer: targetPos.layer,
+      row: sourcePos.row,
+      side: oppCrossSide
+    },
+    // End: target element, alongLane side (coming from right/down)
+    {
+      lane: targetPos.lane,
+      layer: targetPos.layer,
+      row: targetPos.row,
+      side: directions.alongLane
+    }
+  ];
+}
+
+/**
+ * Check if a flow is a back-edge
+ * @param {string} flowId - Flow ID
+ * @param {Array} backEdges - Array of back-edge flow IDs
+ * @returns {boolean}
+ */
+export function isBackEdge(flowId, backEdges) {
+  return backEdges.includes(flowId);
+}

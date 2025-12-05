@@ -17,7 +17,9 @@ import {
   assignCrossLaneBlockedPosition,
   sortGatewayOutputs,
   assignSymmetricRows,
-  assignGatewayOutputPositions
+  assignGatewayOutputPositions,
+  createBackFlowWaypoints,
+  isBackEdge
 } from '../../src/phase2.js';
 
 describe('Phase 2: Configuration', () => {
@@ -681,5 +683,107 @@ describe('Phase 2: Rule 5 - Gateway Output Sorting and Positioning', () => {
     expect(outputPositions.get('task1').row).toBe(-1);  // First output
     expect(outputPositions.get('task2').row).toBe(0);   // Second output
     expect(outputPositions.get('task3').row).toBe(1);   // Third output
+  });
+});
+
+
+describe('Phase 2: Back-Flow Waypoints', () => {
+  test('should detect back-edge flows', () => {
+    const backEdges = ['flow3', 'flow5'];
+    
+    expect(isBackEdge('flow3', backEdges)).toBe(true);
+    expect(isBackEdge('flow1', backEdges)).toBe(false);
+  });
+
+  test('should create waypoints for same-lane back-flow', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task2', { lane: 'lane1', layer: 1, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane1']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }]
+    ]);
+
+    const directions = {
+      alongLane: 'right',
+      oppAlongLane: 'left'
+    };
+
+    const waypoints = createBackFlowWaypoints('flow3', 'task2', 'task1', positions, elementLanes, lanes, directions);
+
+    expect(waypoints.length).toBe(2);
+    expect(waypoints[0].side).toBe('left');   // oppAlongLane (going backwards)
+    expect(waypoints[1].side).toBe('right');  // alongLane (coming in)
+    expect(waypoints[0].layer).toBe(1);       // Source layer
+    expect(waypoints[1].layer).toBe(0);       // Target layer
+  });
+
+  test('should create waypoints for cross-lane back-flow', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task3', { lane: 'lane3', layer: 1, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task3', 'lane3']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }],
+      ['lane3', { id: 'lane3' }]
+    ]);
+
+    const directions = {
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const waypoints = createBackFlowWaypoints('flow3', 'task3', 'task1', positions, elementLanes, lanes, directions);
+
+    expect(waypoints.length).toBe(3);
+    expect(waypoints[0].side).toBe('left');   // oppAlongLane (going backwards)
+    expect(waypoints[1].side).toBe('up');     // oppCrossLane (going up)
+    expect(waypoints[2].side).toBe('right');  // alongLane (coming in)
+  });
+
+  test('should use correct layers for back-flow waypoints', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task3', { lane: 'lane3', layer: 1, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task3', 'lane3']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }],
+      ['lane3', { id: 'lane3' }]
+    ]);
+
+    const directions = {
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const waypoints = createBackFlowWaypoints('flow3', 'task3', 'task1', positions, elementLanes, lanes, directions);
+
+    expect(waypoints[0].layer).toBe(1);  // Source layer (task3)
+    expect(waypoints[1].layer).toBe(0);  // Target layer (corner at task1 layer)
+    expect(waypoints[2].layer).toBe(0);  // Target layer (task1)
   });
 });
