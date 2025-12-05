@@ -8,7 +8,12 @@ import {
   getCrossLaneDirection,
   identifyBackFlowTargets,
   reserveBackFlowColumns,
-  hasReservedColumn
+  hasReservedColumn,
+  assignSameLanePosition,
+  createSameLaneWaypoints,
+  isCrossLanePathFree,
+  assignCrossLaneFreePosition,
+  createCrossLaneWaypoints
 } from '../../src/phase2.js';
 
 describe('Phase 2: Configuration', () => {
@@ -258,5 +263,245 @@ describe('Phase 2: Back-Flow Reservation', () => {
 
     expect(backFlowTargets.size).toBe(1);
     expect(backFlowTargets.has('task1')).toBe(true);
+  });
+});
+
+
+describe('Phase 2: Rule 1 - Same Lane Positioning', () => {
+  test('should assign layer + 1 for same-lane flow', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane1']
+    ]);
+
+    const position = assignSameLanePosition('task1', 'task2', positions, elementLanes);
+
+    expect(position.lane).toBe('lane1');
+    expect(position.layer).toBe(1);
+    expect(position.row).toBe(0);
+  });
+
+  test('should create waypoints for same-lane flow (horizontal)', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task2', { lane: 'lane1', layer: 1, row: 0 }]
+    ]);
+
+    const directions = {
+      alongLane: 'right',
+      oppAlongLane: 'left'
+    };
+
+    const waypoints = createSameLaneWaypoints('flow1', 'task1', 'task2', positions, directions);
+
+    expect(waypoints.length).toBe(2);
+    expect(waypoints[0].side).toBe('right');  // alongLane
+    expect(waypoints[1].side).toBe('left');   // oppAlongLane
+    expect(waypoints[0].layer).toBe(0);
+    expect(waypoints[1].layer).toBe(1);
+  });
+
+  test('should create waypoints for same-lane flow (vertical)', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task2', { lane: 'lane1', layer: 1, row: 0 }]
+    ]);
+
+    const directions = {
+      alongLane: 'down',
+      oppAlongLane: 'up'
+    };
+
+    const waypoints = createSameLaneWaypoints('flow1', 'task1', 'task2', positions, directions);
+
+    expect(waypoints.length).toBe(2);
+    expect(waypoints[0].side).toBe('down');  // alongLane
+    expect(waypoints[1].side).toBe('up');    // oppAlongLane
+  });
+
+  test('should preserve row for same-lane flow', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 2, row: 3 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane1']
+    ]);
+
+    const position = assignSameLanePosition('task1', 'task2', positions, elementLanes);
+
+    expect(position.row).toBe(3);  // Same row as source
+  });
+});
+
+
+describe('Phase 2: Rule 3 - Cross-Lane Free Path', () => {
+  test('should detect free cross-lane path', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }]
+    ]);
+
+    const matrix = new Map([
+      ['lane1', new Map()],
+      ['lane2', new Map()]
+    ]);
+
+    const reservations = new Map();
+
+    const isFree = isCrossLanePathFree('task1', 'task2', positions, elementLanes, lanes, matrix, reservations);
+
+    expect(isFree).toBe(true);
+  });
+
+  test('should detect blocked cross-lane path (element in between)', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task3', { lane: 'lane2', layer: 0, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane3'],
+      ['task3', 'lane2']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }],
+      ['lane3', { id: 'lane3' }]
+    ]);
+
+    const matrix = new Map([
+      ['lane1', new Map()],
+      ['lane2', new Map([[0, { elements: ['task3'] }]])],
+      ['lane3', new Map()]
+    ]);
+
+    const reservations = new Map();
+
+    const isFree = isCrossLanePathFree('task1', 'task2', positions, elementLanes, lanes, matrix, reservations);
+
+    expect(isFree).toBe(false);
+  });
+
+  test('should detect blocked path when target has reserved column', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }]
+    ]);
+
+    const matrix = new Map([
+      ['lane1', new Map()],
+      ['lane2', new Map()]
+    ]);
+
+    const reservations = new Map([
+      ['task2', { reservedColumn: true }]
+    ]);
+
+    const isFree = isCrossLanePathFree('task1', 'task2', positions, elementLanes, lanes, matrix, reservations);
+
+    expect(isFree).toBe(false);
+  });
+
+  test('should assign same layer for cross-lane free path', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 2, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const position = assignCrossLaneFreePosition('task1', 'task2', positions, elementLanes);
+
+    expect(position.lane).toBe('lane2');
+    expect(position.layer).toBe(2);  // Same layer as source
+  });
+
+  test('should create straight line waypoints for cross-lane flow with same layer', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task2', { lane: 'lane2', layer: 0, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }]
+    ]);
+
+    const directions = {
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const waypoints = createCrossLaneWaypoints('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
+
+    expect(waypoints.length).toBe(2);  // Straight line!
+    expect(waypoints[0].side).toBe('down');  // crossLane (going down)
+    expect(waypoints[1].side).toBe('up');    // oppCrossLane (coming from up)
+  });
+
+  test('should create L-shape waypoints for cross-lane flow with different layers', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task2', { lane: 'lane2', layer: 1, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }]
+    ]);
+
+    const directions = {
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const waypoints = createCrossLaneWaypoints('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
+
+    expect(waypoints.length).toBe(3);  // L-shape
+    expect(waypoints[0].side).toBe('right');  // alongLane (going right)
+    expect(waypoints[1].side).toBe('down');   // crossLane (bending down)
+    expect(waypoints[2].side).toBe('up');     // oppCrossLane (coming from up)
   });
 });

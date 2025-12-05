@@ -206,3 +206,200 @@ export function reserveBackFlowColumns(backFlowTargets, elementLanes) {
 export function hasReservedColumn(elementId, reservations) {
   return reservations.has(elementId) && reservations.get(elementId).reservedColumn === true;
 }
+
+/**
+ * Assign position for same-lane flow (Rule 1)
+ * Target element gets layer + 1 from source element
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Current positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @returns {Object} - { lane, layer, row }
+ */
+export function assignSameLanePosition(sourceId, targetId, positions, elementLanes) {
+  const sourcePos = positions.get(sourceId);
+  const targetLane = elementLanes.get(targetId);
+
+  return {
+    lane: targetLane,
+    layer: sourcePos.layer + 1,
+    row: sourcePos.row
+  };
+}
+
+/**
+ * Create waypoints for same-lane flow
+ * @param {string} flowId - Flow ID
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Positions map
+ * @param {Object} directions - Direction mappings
+ * @returns {Array} - Array of logical waypoints
+ */
+export function createSameLaneWaypoints(flowId, sourceId, targetId, positions, directions) {
+  const sourcePos = positions.get(sourceId);
+  const targetPos = positions.get(targetId);
+
+  return [
+    {
+      lane: sourcePos.lane,
+      layer: sourcePos.layer,
+      row: sourcePos.row,
+      side: directions.alongLane
+    },
+    {
+      lane: targetPos.lane,
+      layer: targetPos.layer,
+      row: targetPos.row,
+      side: directions.oppAlongLane
+    }
+  ];
+}
+
+/**
+ * Check if cross-lane path is free
+ * Path is free if:
+ * 1. No elements in lanes between source and target at source layer
+ * 2. Target element does NOT have a reserved column (no back-flow)
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Current positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} lanes - Lane map
+ * @param {Map} matrix - Matrix tracking elements and flows
+ * @param {Map} reservations - Back-flow reservations
+ * @returns {boolean}
+ */
+export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes, lanes, matrix, reservations) {
+  const sourcePos = positions.get(sourceId);
+  const sourceLane = elementLanes.get(sourceId);
+  const targetLane = elementLanes.get(targetId);
+
+  // Check if target has reserved column (receives back-flow)
+  if (hasReservedColumn(targetId, reservations)) {
+    return false;
+  }
+
+  const sourceLaneIndex = getLaneIndex(sourceLane, lanes);
+  const targetLaneIndex = getLaneIndex(targetLane, lanes);
+
+  const minLaneIndex = Math.min(sourceLaneIndex, targetLaneIndex);
+  const maxLaneIndex = Math.max(sourceLaneIndex, targetLaneIndex);
+
+  // Check all lanes between source and target
+  const laneIds = Array.from(lanes.keys());
+  for (let i = minLaneIndex; i <= maxLaneIndex; i++) {
+    const laneId = laneIds[i];
+    const laneMatrix = matrix.get(laneId);
+    
+    if (laneMatrix && laneMatrix.has(sourcePos.layer)) {
+      const cell = laneMatrix.get(sourcePos.layer);
+      // If there are elements in this cell, path is blocked
+      if (cell.elements && cell.elements.length > 0) {
+        // Exception: source and target lanes can have elements
+        if (laneId !== sourceLane && laneId !== targetLane) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Assign position for cross-lane flow with free path (Rule 3)
+ * Target element gets same layer as source element
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Current positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @returns {Object} - { lane, layer, row }
+ */
+export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes) {
+  const sourcePos = positions.get(sourceId);
+  const targetLane = elementLanes.get(targetId);
+
+  return {
+    lane: targetLane,
+    layer: sourcePos.layer,  // Same layer!
+    row: 0  // Default row
+  };
+}
+
+/**
+ * Create waypoints for cross-lane flow
+ * Two cases:
+ * 1. Same layer: Straight line (crossLane → oppCrossLane)
+ * 2. Different layers: L-shape with minimal bends
+ * @param {string} flowId - Flow ID
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} lanes - Lane map
+ * @param {Object} directions - Direction mappings
+ * @returns {Array} - Array of logical waypoints
+ */
+export function createCrossLaneWaypoints(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
+  const sourcePos = positions.get(sourceId);
+  const targetPos = positions.get(targetId);
+
+  const sourceLane = elementLanes.get(sourceId);
+  const targetLane = elementLanes.get(targetId);
+
+  const crossDirection = getCrossLaneDirection(
+    { sourceRef: sourceId, targetRef: targetId },
+    elementLanes,
+    lanes,
+    directions
+  );
+
+  const crossSide = crossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
+  const oppCrossSide = crossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
+
+  // Case 1: Same layer - straight line (crossLane → oppCrossLane)
+  if (sourcePos.layer === targetPos.layer) {
+    return [
+      // Start: source element, crossLane side (going down/up)
+      {
+        lane: sourcePos.lane,
+        layer: sourcePos.layer,
+        row: sourcePos.row,
+        side: crossSide
+      },
+      // End: target element, oppCrossLane side (coming from up/down)
+      {
+        lane: targetPos.lane,
+        layer: targetPos.layer,
+        row: targetPos.row,
+        side: oppCrossSide
+      }
+    ];
+  }
+
+  // Case 2: Different layers - L-shape (alongLane → crossLane → oppCrossLane)
+  return [
+    // Start: source element, alongLane side (going right/down)
+    {
+      lane: sourcePos.lane,
+      layer: sourcePos.layer,
+      row: sourcePos.row,
+      side: directions.alongLane
+    },
+    // Corner: target layer, source lane, crossLane side (bending down/right)
+    {
+      lane: sourceLane,
+      layer: targetPos.layer,
+      row: sourcePos.row,
+      side: crossSide
+    },
+    // End: target element, oppCrossLane side (coming from up/left)
+    {
+      lane: targetPos.lane,
+      layer: targetPos.layer,
+      row: targetPos.row,
+      side: oppCrossSide
+    }
+  ];
+}
