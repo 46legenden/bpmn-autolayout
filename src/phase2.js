@@ -451,20 +451,45 @@ export function assignSymmetricRows(outputCount) {
  */
 export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows) {
   const gatewayPos = positions.get(gatewayId);
-  const rows = assignSymmetricRows(sortedOutputFlowIds.length);
+  const gatewayLane = elementLanes.get(gatewayId);
 
-  const outputPositions = new Map();
+  // Separate same-lane and cross-lane outputs
+  const sameLaneOutputs = [];
+  const crossLaneOutputs = [];
 
-  for (let i = 0; i < sortedOutputFlowIds.length; i++) {
-    const flowId = sortedOutputFlowIds[i];
+  for (const flowId of sortedOutputFlowIds) {
     const flow = flows.get(flowId);
     const targetId = flow.targetRef;
     const targetLane = elementLanes.get(targetId);
 
+    if (targetLane === gatewayLane) {
+      sameLaneOutputs.push({ flowId, targetId, targetLane });
+    } else {
+      crossLaneOutputs.push({ flowId, targetId, targetLane });
+    }
+  }
+
+  // Assign symmetric rows only for same-lane outputs
+  const sameLaneRows = assignSymmetricRows(sameLaneOutputs.length);
+
+  const outputPositions = new Map();
+
+  // Same-lane outputs with symmetric rows
+  for (let i = 0; i < sameLaneOutputs.length; i++) {
+    const { targetId, targetLane } = sameLaneOutputs[i];
     outputPositions.set(targetId, {
       lane: targetLane,
       layer: gatewayPos.layer + 1,
-      row: rows[i]
+      row: sameLaneRows[i]
+    });
+  }
+
+  // Cross-lane outputs always at row 0
+  for (const { targetId, targetLane } of crossLaneOutputs) {
+    outputPositions.set(targetId, {
+      lane: targetLane,
+      layer: gatewayPos.layer + 1,
+      row: 0  // Always row 0 for cross-lane
     });
   }
 

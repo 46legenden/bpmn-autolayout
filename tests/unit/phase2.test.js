@@ -306,9 +306,9 @@ describe('Phase 2: Gateway Outputs', () => {
     const outputPositions = assignGatewayOutputPositions('xor1', ['flow1', 'flow2'], positions, elementLanes, flows);
 
     expect(outputPositions.get('task1').layer).toBe(2);
-    expect(outputPositions.get('task1').row).toBe(0);
+    expect(outputPositions.get('task1').row).toBe(0);  // Same-lane
     expect(outputPositions.get('task2').layer).toBe(2);
-    expect(outputPositions.get('task2').row).toBe(1);
+    expect(outputPositions.get('task2').row).toBe(0);  // Cross-lane, always row 0
   });
 });
 
