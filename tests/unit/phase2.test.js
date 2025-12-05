@@ -299,7 +299,9 @@ describe('Phase 2: Rule 1 - Same Lane Positioning', () => {
 
     const directions = {
       alongLane: 'right',
-      oppAlongLane: 'left'
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
     };
 
     const waypoints = createSameLaneWaypoints('flow1', 'task1', 'task2', positions, directions);
@@ -712,14 +714,16 @@ describe('Phase 2: Back-Flow Waypoints', () => {
 
     const directions = {
       alongLane: 'right',
-      oppAlongLane: 'left'
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
     };
 
     const waypoints = createBackFlowWaypoints('flow3', 'task2', 'task1', positions, elementLanes, lanes, directions);
 
     expect(waypoints.length).toBe(2);
     expect(waypoints[0].side).toBe('left');   // oppAlongLane (going backwards)
-    expect(waypoints[1].side).toBe('right');  // alongLane (coming in)
+    expect(waypoints[1].side).toBe('up');     // oppCrossLane (coming from bottom!)
     expect(waypoints[0].layer).toBe(1);       // Source layer
     expect(waypoints[1].layer).toBe(0);       // Target layer
   });
@@ -753,7 +757,7 @@ describe('Phase 2: Back-Flow Waypoints', () => {
     expect(waypoints.length).toBe(3);
     expect(waypoints[0].side).toBe('left');   // oppAlongLane (going backwards)
     expect(waypoints[1].side).toBe('up');     // oppCrossLane (going up)
-    expect(waypoints[2].side).toBe('right');  // alongLane (coming in)
+    expect(waypoints[2].side).toBe('up');     // oppCrossLane (coming from bottom!)
   });
 
   test('should use correct layers for back-flow waypoints', () => {

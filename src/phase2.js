@@ -537,19 +537,19 @@ export function createBackFlowWaypoints(flowId, sourceId, targetId, positions, e
   // Same lane back-flow
   if (sourceLane === targetLane) {
     return [
-      // Start: source element, oppAlongLane side (going backwards)
+      // Start: source element, oppAlongLane side (going backwards/left)
       {
         lane: sourcePos.lane,
         layer: sourcePos.layer,
         row: sourcePos.row,
         side: directions.oppAlongLane
       },
-      // End: target element, alongLane side (coming from right/down)
+      // End: target element, oppCrossLane side (coming from bottom - reserved column!)
       {
         lane: targetPos.lane,
         layer: targetPos.layer,
         row: targetPos.row,
-        side: directions.alongLane
+        side: directions.oppCrossLane
       }
     ];
   }
@@ -568,30 +568,30 @@ export function createBackFlowWaypoints(flowId, sourceId, targetId, positions, e
   const crossSide = forwardCrossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
   const oppCrossSide = forwardCrossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
 
-  // Back-flow goes: oppAlongLane → oppCrossLane → alongLane (or similar)
-  // We need to go backwards (oppAlongLane) then change lanes
+  // Back-flow goes: oppAlongLane → oppCrossLane (up) → target (from bottom)
+  // Target ALWAYS receives from oppCrossLane (bottom) because column is reserved
   
   return [
-    // Start: source element, oppAlongLane side (going backwards)
+    // Start: source element, oppAlongLane side (going backwards/left)
     {
       lane: sourcePos.lane,
       layer: sourcePos.layer,
       row: sourcePos.row,
       side: directions.oppAlongLane
     },
-    // Corner: target layer, source lane, oppCrossLane side
+    // Corner: target layer, source lane, oppCrossLane side (going up)
     {
       lane: sourceLane,
       layer: targetPos.layer,
       row: sourcePos.row,
       side: oppCrossSide
     },
-    // End: target element, alongLane side (coming from right/down)
+    // End: target element, oppCrossLane side (coming from bottom - reserved column!)
     {
       lane: targetPos.lane,
       layer: targetPos.layer,
       row: targetPos.row,
-      side: directions.alongLane
+      side: directions.oppCrossLane
     }
   ];
 }
