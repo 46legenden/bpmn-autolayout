@@ -1,12 +1,12 @@
 /**
- * Phase 2: Position Assignment + Waypoints + Collision Detection
+ * Phase 2: Position Assignment + Flow Information (Simplified)
  * 
  * This phase handles:
  * - Applying configuration (abstract directions)
  * - Gateway lane assignment
  * - Position assignment (lane, layer, row)
- * - Waypoint calculation
- * - Proactive collision prevention through corridor reservation
+ * - Flow information (exitSide, entrySide, waypoints for normal flows)
+ * - Back-flows are only marked, routing happens in Phase 3
  */
 
 /**
@@ -100,16 +100,6 @@ export function assignGatewayLanes(elements, flows, lanes) {
         }
       }
     }
-    // Default: use first output's lane
-    else if (element.outgoing.length > 0) {
-      const outgoingFlow = flows.get(element.outgoing[0]);
-      if (outgoingFlow) {
-        const targetLane = elementLanes.get(outgoingFlow.targetRef);
-        if (targetLane) {
-          elementLanes.set(elementId, targetLane);
-        }
-      }
-    }
   }
 
   return elementLanes;
@@ -119,7 +109,7 @@ export function assignGatewayLanes(elements, flows, lanes) {
  * Get lane index (position in lane list)
  * @param {string} laneId - Lane ID
  * @param {Map} lanes - Lane map
- * @returns {number} - Lane index
+ * @returns {number} - Lane index (0-based)
  */
 export function getLaneIndex(laneId, lanes) {
   const laneIds = Array.from(lanes.keys());
@@ -144,7 +134,7 @@ export function isCrossLane(flow, elementLanes) {
  * @param {Map} elementLanes - elementId → laneId
  * @param {Map} lanes - Lane map
  * @param {Object} directions - Direction mappings
- * @returns {string} - "crossLane" or "oppCrossLane"
+ * @returns {string} - 'crossLane' or 'oppCrossLane'
  */
 export function getCrossLaneDirection(flow, elementLanes, lanes, directions) {
   const sourceLane = elementLanes.get(flow.sourceRef);
@@ -153,132 +143,78 @@ export function getCrossLaneDirection(flow, elementLanes, lanes, directions) {
   const sourceLaneIndex = getLaneIndex(sourceLane, lanes);
   const targetLaneIndex = getLaneIndex(targetLane, lanes);
 
-  if (targetLaneIndex > sourceLaneIndex) {
-    return 'crossLane';  // Going in crossLane direction (down/right)
-  } else {
-    return 'oppCrossLane';  // Going in oppCrossLane direction (up/left)
-  }
+  // If target is below source (higher index), go crossLane (down/right)
+  // If target is above source (lower index), go oppCrossLane (up/left)
+  return targetLaneIndex > sourceLaneIndex ? 'crossLane' : 'oppCrossLane';
 }
 
 /**
- * Identify elements that receive back-flows (loop targets)
- * @param {Map} elements - Element map
- * @param {Array} backEdges - Array of flow IDs that are back-edges
- * @param {Map} flows - Flow map
- * @returns {Set} - Set of element IDs that receive back-flows
- */
-export function identifyBackFlowTargets(elements, backEdges, flows) {
-  const backFlowTargets = new Set();
-
-  for (const flowId of backEdges) {
-    const flow = flows.get(flowId);
-    if (flow) {
-      backFlowTargets.add(flow.targetRef);
-    }
-  }
-
-  return backFlowTargets;
-}
-
-/**
- * Reserve columns for elements that receive back-flows
- * This must be done BEFORE position assignment to prevent collisions
- * @param {Set} backFlowTargets - Set of element IDs that receive back-flows
- * @param {Map} elementLanes - elementId → laneId
- * @returns {Map} - elementId → { reservedColumn: true }
- */
-export function reserveBackFlowColumns(backFlowTargets, elementLanes) {
-  const reservations = new Map();
-
-  for (const elementId of backFlowTargets) {
-    reservations.set(elementId, { reservedColumn: true });
-  }
-
-  return reservations;
-}
-
-/**
- * Check if an element has a reserved column (receives back-flow)
- * @param {string} elementId - Element ID
- * @param {Map} reservations - Reservation map
- * @returns {boolean}
- */
-export function hasReservedColumn(elementId, reservations) {
-  return reservations.has(elementId) && reservations.get(elementId).reservedColumn === true;
-}
-
-/**
- * Assign position for same-lane flow (Rule 1)
- * Target element gets layer + 1 from source element
+ * Assign position for same-lane flow
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
- * @param {Map} positions - Current positions map
+ * @param {Map} positions - Positions map
  * @param {Map} elementLanes - elementId → laneId
  * @returns {Object} - { lane, layer, row }
  */
 export function assignSameLanePosition(sourceId, targetId, positions, elementLanes) {
   const sourcePos = positions.get(sourceId);
-  const targetLane = elementLanes.get(targetId);
+  const lane = elementLanes.get(targetId);
 
   return {
-    lane: targetLane,
+    lane,
     layer: sourcePos.layer + 1,
     row: sourcePos.row
   };
 }
 
 /**
- * Create waypoints for same-lane flow
+ * Create flow information for same-lane flow
  * @param {string} flowId - Flow ID
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
  * @param {Map} positions - Positions map
  * @param {Object} directions - Direction mappings
- * @returns {Array} - Array of logical waypoints
+ * @returns {Object} - Flow information
  */
-export function createSameLaneWaypoints(flowId, sourceId, targetId, positions, directions) {
+export function createSameLaneFlowInfo(flowId, sourceId, targetId, positions, directions) {
   const sourcePos = positions.get(sourceId);
   const targetPos = positions.get(targetId);
 
-  return [
-    {
+  return {
+    flowId,
+    sourceId,
+    targetId,
+    isBackFlow: false,
+    source: {
       lane: sourcePos.lane,
       layer: sourcePos.layer,
       row: sourcePos.row,
-      side: directions.alongLane
+      exitSide: directions.alongLane
     },
-    {
+    waypoints: [],  // No intermediate waypoints for same-lane
+    target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
       row: targetPos.row,
-      side: directions.oppAlongLane
+      entrySide: directions.oppAlongLane
     }
-  ];
+  };
 }
 
 /**
- * Check if cross-lane path is free
- * Path is free if:
- * 1. No elements in lanes between source and target at source layer
- * 2. Target element does NOT have a reserved column (no back-flow)
+ * Check if cross-lane path is free (no elements in between)
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
- * @param {Map} positions - Current positions map
+ * @param {Map} positions - Positions map
  * @param {Map} elementLanes - elementId → laneId
  * @param {Map} lanes - Lane map
- * @param {Map} matrix - Matrix tracking elements and flows
- * @param {Map} reservations - Back-flow reservations
+ * @param {Map} matrix - Matrix
  * @returns {boolean}
  */
-export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes, lanes, matrix, reservations) {
+export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes, lanes, matrix) {
   const sourcePos = positions.get(sourceId);
   const sourceLane = elementLanes.get(sourceId);
   const targetLane = elementLanes.get(targetId);
-
-  // Check if target has reserved column (receives back-flow)
-  if (hasReservedColumn(targetId, reservations)) {
-    return false;
-  }
 
   const sourceLaneIndex = getLaneIndex(sourceLane, lanes);
   const targetLaneIndex = getLaneIndex(targetLane, lanes);
@@ -288,50 +224,42 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
 
   // Check all lanes between source and target
   const laneIds = Array.from(lanes.keys());
-  for (let i = minLaneIndex; i <= maxLaneIndex; i++) {
+  for (let i = minLaneIndex + 1; i < maxLaneIndex; i++) {
     const laneId = laneIds[i];
     const laneMatrix = matrix.get(laneId);
     
     if (laneMatrix && laneMatrix.has(sourcePos.layer)) {
       const cell = laneMatrix.get(sourcePos.layer);
-      // If there are elements in this cell, path is blocked
-      if (cell.elements && cell.elements.length > 0) {
-        // Exception: source and target lanes can have elements
-        if (laneId !== sourceLane && laneId !== targetLane) {
-          return false;
-        }
+      if (cell && cell.elements && cell.elements.length > 0) {
+        return false;  // Path is blocked
       }
     }
   }
 
-  return true;
+  return true;  // Path is free
 }
 
 /**
- * Assign position for cross-lane flow with free path (Rule 3)
- * Target element gets same layer as source element
+ * Assign position for cross-lane flow (free path)
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
- * @param {Map} positions - Current positions map
+ * @param {Map} positions - Positions map
  * @param {Map} elementLanes - elementId → laneId
  * @returns {Object} - { lane, layer, row }
  */
 export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes) {
   const sourcePos = positions.get(sourceId);
-  const targetLane = elementLanes.get(targetId);
+  const lane = elementLanes.get(targetId);
 
   return {
-    lane: targetLane,
-    layer: sourcePos.layer,  // Same layer!
-    row: 0  // Default row
+    lane,
+    layer: sourcePos.layer,  // Same layer (free path)
+    row: 0
   };
 }
 
 /**
- * Create waypoints for cross-lane flow
- * Two cases:
- * 1. Same layer: Straight line (crossLane → oppCrossLane)
- * 2. Different layers: L-shape with minimal bends
+ * Create flow information for cross-lane flow (free path, same layer)
  * @param {string} flowId - Flow ID
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
@@ -339,14 +267,11 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
  * @param {Map} elementLanes - elementId → laneId
  * @param {Map} lanes - Lane map
  * @param {Object} directions - Direction mappings
- * @returns {Array} - Array of logical waypoints
+ * @returns {Object} - Flow information
  */
-export function createCrossLaneWaypoints(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
+export function createCrossLaneFreeFlowInfo(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
   const sourcePos = positions.get(sourceId);
   const targetPos = positions.get(targetId);
-
-  const sourceLane = elementLanes.get(sourceId);
-  const targetLane = elementLanes.get(targetId);
 
   const crossDirection = getCrossLaneDirection(
     { sourceRef: sourceId, targetRef: targetId },
@@ -358,250 +283,223 @@ export function createCrossLaneWaypoints(flowId, sourceId, targetId, positions, 
   const crossSide = crossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
   const oppCrossSide = crossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
 
-  // Case 1: Same layer - straight line (crossLane → oppCrossLane)
-  if (sourcePos.layer === targetPos.layer) {
-    return [
-      // Start: source element, crossLane side (going down/up)
-      {
-        lane: sourcePos.lane,
-        layer: sourcePos.layer,
-        row: sourcePos.row,
-        side: crossSide
-      },
-      // End: target element, oppCrossLane side (coming from up/down)
-      {
-        lane: targetPos.lane,
-        layer: targetPos.layer,
-        row: targetPos.row,
-        side: oppCrossSide
-      }
-    ];
-  }
-
-  // Case 2: Different layers - L-shape (alongLane → crossLane → oppCrossLane)
-  return [
-    // Start: source element, alongLane side (going right/down)
-    {
+  // Same layer: straight line (crossLane → oppCrossLane)
+  return {
+    flowId,
+    sourceId,
+    targetId,
+    isBackFlow: false,
+    source: {
       lane: sourcePos.lane,
       layer: sourcePos.layer,
       row: sourcePos.row,
-      side: directions.alongLane
+      exitSide: crossSide
     },
-    // Corner: target layer, source lane, crossLane side (bending down/right)
-    {
-      lane: sourceLane,
-      layer: targetPos.layer,
-      row: sourcePos.row,
-      side: crossSide
-    },
-    // End: target element, oppCrossLane side (coming from up/left)
-    {
+    waypoints: [],  // No intermediate waypoints (straight line)
+    target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
       row: targetPos.row,
-      side: oppCrossSide
+      entrySide: oppCrossSide
     }
-  ];
+  };
 }
 
 /**
- * Assign position for cross-lane flow with blocked path (Rule 4)
- * Target element gets layer + 1 from source element
+ * Assign position for cross-lane flow (blocked path)
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
- * @param {Map} positions - Current positions map
+ * @param {Map} positions - Positions map
  * @param {Map} elementLanes - elementId → laneId
  * @returns {Object} - { lane, layer, row }
  */
 export function assignCrossLaneBlockedPosition(sourceId, targetId, positions, elementLanes) {
   const sourcePos = positions.get(sourceId);
-  const targetLane = elementLanes.get(targetId);
+  const lane = elementLanes.get(targetId);
 
   return {
-    lane: targetLane,
-    layer: sourcePos.layer + 1,  // Layer + 1 because path is blocked
-    row: 0  // Default row
+    lane,
+    layer: sourcePos.layer + 1,  // Layer +1 (blocked path)
+    row: 0
   };
 }
 
 /**
- * Sort gateway outputs by target lane position
- * Outputs going in oppCrossLane direction come first, then same lane, then crossLane direction
- * @param {Array} outputFlowIds - Array of output flow IDs
- * @param {Map} flows - Flow map
- * @param {Map} elementLanes - elementId → laneId
- * @param {Map} lanes - Lane map
- * @param {string} gatewayLane - Gateway's lane ID
- * @returns {Array} - Sorted array of flow IDs
- */
-export function sortGatewayOutputs(outputFlowIds, flows, elementLanes, lanes, gatewayLane) {
-  const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
-
-  return outputFlowIds.slice().sort((flowIdA, flowIdB) => {
-    const flowA = flows.get(flowIdA);
-    const flowB = flows.get(flowIdB);
-
-    const targetLaneA = elementLanes.get(flowA.targetRef);
-    const targetLaneB = elementLanes.get(flowB.targetRef);
-
-    const targetIndexA = getLaneIndex(targetLaneA, lanes);
-    const targetIndexB = getLaneIndex(targetLaneB, lanes);
-
-    // Sort by lane index: lower index (oppCrossLane) first, higher index (crossLane) last
-    return targetIndexA - targetIndexB;
-  });
-}
-
-/**
- * Assign symmetric rows for gateway outputs
- * 2 outputs: [0, 1]
- * 3 outputs: [-1, 0, 1]
- * 4 outputs: [-1, 0, 1, 2]
- * etc.
- * @param {number} outputCount - Number of outputs
- * @returns {Array} - Array of row numbers
- */
-export function assignSymmetricRows(outputCount) {
-  const rows = [];
-  
-  if (outputCount === 1) {
-    return [0];
-  }
-  
-  if (outputCount === 2) {
-    return [0, 1];
-  }
-  
-  // For 3+ outputs, center around 0
-  const half = Math.floor(outputCount / 2);
-  const start = outputCount % 2 === 0 ? -half + 1 : -half;
-  
-  for (let i = 0; i < outputCount; i++) {
-    rows.push(start + i);
-  }
-  
-  return rows;
-}
-
-/**
- * Assign positions for gateway outputs (Rule 5)
- * All outputs get layer + 1, with symmetric row assignments
- * @param {string} gatewayId - Gateway element ID
- * @param {Array} outputFlowIds - Sorted array of output flow IDs
- * @param {Map} positions - Current positions map
- * @param {Map} elementLanes - elementId → laneId
- * @param {Map} flows - Flow map
- * @returns {Map} - Map of targetId → { lane, layer, row }
- */
-export function assignGatewayOutputPositions(gatewayId, outputFlowIds, positions, elementLanes, flows) {
-  const gatewayPos = positions.get(gatewayId);
-  const outputPositions = new Map();
-  
-  const rows = assignSymmetricRows(outputFlowIds.length);
-  
-  for (let i = 0; i < outputFlowIds.length; i++) {
-    const flowId = outputFlowIds[i];
-    const flow = flows.get(flowId);
-    const targetId = flow.targetRef;
-    const targetLane = elementLanes.get(targetId);
-    
-    outputPositions.set(targetId, {
-      lane: targetLane,
-      layer: gatewayPos.layer + 1,
-      row: gatewayPos.row + rows[i]  // Offset from gateway's row
-    });
-  }
-  
-  return outputPositions;
-}
-
-/**
- * Create waypoints for back-flow (loop)
- * Back-flows go in oppAlongLane direction (backwards)
+ * Create flow information for cross-lane flow (blocked path, different layer)
  * @param {string} flowId - Flow ID
  * @param {string} sourceId - Source element ID
- * @param {string} targetId - Target element ID (loop target)
+ * @param {string} targetId - Target element ID
  * @param {Map} positions - Positions map
  * @param {Map} elementLanes - elementId → laneId
  * @param {Map} lanes - Lane map
  * @param {Object} directions - Direction mappings
- * @returns {Array} - Array of logical waypoints
+ * @returns {Object} - Flow information
  */
-export function createBackFlowWaypoints(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
+export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
   const sourcePos = positions.get(sourceId);
   const targetPos = positions.get(targetId);
 
-  const sourceLane = elementLanes.get(sourceId);
-  const targetLane = elementLanes.get(targetId);
-
-  // Same lane back-flow
-  if (sourceLane === targetLane) {
-    return [
-      // Start: source element, oppAlongLane side (going backwards/left)
-      {
-        lane: sourcePos.lane,
-        layer: sourcePos.layer,
-        row: sourcePos.row,
-        side: directions.oppAlongLane
-      },
-      // End: target element, oppCrossLane side (coming from bottom - reserved column!)
-      {
-        lane: targetPos.lane,
-        layer: targetPos.layer,
-        row: targetPos.row,
-        side: directions.oppCrossLane
-      }
-    ];
-  }
-
-  // Cross-lane back-flow
-  // For back-flows, the cross direction is INVERTED
-  // (we're going backwards, so if forward would be crossLane, backward is oppCrossLane)
-  const forwardCrossDirection = getCrossLaneDirection(
+  const crossDirection = getCrossLaneDirection(
     { sourceRef: sourceId, targetRef: targetId },
     elementLanes,
     lanes,
     directions
   );
 
-  // Invert the direction for back-flow
-  const crossSide = forwardCrossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
-  const oppCrossSide = forwardCrossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
+  const crossSide = crossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
+  const oppCrossSide = crossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
 
-  // Back-flow goes: oppAlongLane → oppCrossLane (up) → target (from bottom)
-  // Target ALWAYS receives from oppCrossLane (bottom) because column is reserved
-  
-  return [
-    // Start: source element, oppAlongLane side (going backwards/left)
-    {
+  // Different layer: L-shape (alongLane → crossLane → oppCrossLane)
+  return {
+    flowId,
+    sourceId,
+    targetId,
+    isBackFlow: false,
+    source: {
       lane: sourcePos.lane,
       layer: sourcePos.layer,
       row: sourcePos.row,
-      side: directions.oppAlongLane
+      exitSide: directions.alongLane
     },
-    // Corner: target layer, source lane, oppCrossLane side (going up)
-    {
-      lane: sourceLane,
-      layer: targetPos.layer,
-      row: sourcePos.row,
-      side: oppCrossSide
-    },
-    // End: target element, oppCrossLane side (coming from bottom - reserved column!)
-    {
+    waypoints: [
+      // Corner at target lane, source layer
+      {
+        lane: targetPos.lane,
+        layer: sourcePos.layer,
+        row: sourcePos.row,
+        side: crossSide
+      }
+    ],
+    target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
       row: targetPos.row,
-      side: directions.oppCrossLane
+      entrySide: oppCrossSide
     }
-  ];
+  };
 }
 
 /**
- * Check if a flow is a back-edge
- * @param {string} flowId - Flow ID
- * @param {Array} backEdges - Array of back-edge flow IDs
- * @returns {boolean}
+ * Sort gateway outputs by target lane
+ * @param {Array} outputFlowIds - Array of output flow IDs
+ * @param {Map} flows - Flow map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} lanes - Lane map
+ * @param {string} gatewayLane - Gateway lane ID
+ * @returns {Array} - Sorted flow IDs
  */
-export function isBackEdge(flowId, backEdges) {
-  return backEdges.includes(flowId);
+export function sortGatewayOutputs(outputFlowIds, flows, elementLanes, lanes, gatewayLane) {
+  const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
+
+  return outputFlowIds.sort((a, b) => {
+    const flowA = flows.get(a);
+    const flowB = flows.get(b);
+
+    const targetLaneA = elementLanes.get(flowA.targetRef);
+    const targetLaneB = elementLanes.get(flowB.targetRef);
+
+    const laneIndexA = getLaneIndex(targetLaneA, lanes);
+    const laneIndexB = getLaneIndex(targetLaneB, lanes);
+
+    // Same lane outputs first, then by lane distance
+    const distanceA = Math.abs(laneIndexA - gatewayLaneIndex);
+    const distanceB = Math.abs(laneIndexB - gatewayLaneIndex);
+
+    if (distanceA === 0 && distanceB !== 0) return -1;
+    if (distanceA !== 0 && distanceB === 0) return 1;
+
+    return laneIndexA - laneIndexB;
+  });
+}
+
+/**
+ * Assign symmetric rows for gateway outputs
+ * @param {number} outputCount - Number of outputs
+ * @returns {Array} - Array of row values
+ */
+export function assignSymmetricRows(outputCount) {
+  if (outputCount === 1) {
+    return [0];
+  }
+
+  const rows = [];
+  const half = Math.floor(outputCount / 2);
+
+  if (outputCount % 2 === 0) {
+    // Even: [0, 1, 2, ...] for 2, 4, 6, ...
+    for (let i = 0; i < outputCount; i++) {
+      rows.push(i);
+    }
+  } else {
+    // Odd: [-1, 0, 1] for 3, [-2, -1, 0, 1, 2] for 5, ...
+    for (let i = -half; i <= half; i++) {
+      rows.push(i);
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Assign positions for gateway outputs
+ * @param {string} gatewayId - Gateway ID
+ * @param {Array} sortedOutputFlowIds - Sorted output flow IDs
+ * @param {Map} positions - Positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} flows - Flow map
+ * @returns {Map} - targetId → { lane, layer, row }
+ */
+export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows) {
+  const gatewayPos = positions.get(gatewayId);
+  const rows = assignSymmetricRows(sortedOutputFlowIds.length);
+
+  const outputPositions = new Map();
+
+  for (let i = 0; i < sortedOutputFlowIds.length; i++) {
+    const flowId = sortedOutputFlowIds[i];
+    const flow = flows.get(flowId);
+    const targetId = flow.targetRef;
+    const targetLane = elementLanes.get(targetId);
+
+    outputPositions.set(targetId, {
+      lane: targetLane,
+      layer: gatewayPos.layer + 1,
+      row: rows[i]
+    });
+  }
+
+  return outputPositions;
+}
+
+/**
+ * Create flow information for back-flow (to be routed in Phase 3)
+ * @param {string} flowId - Flow ID
+ * @param {string} sourceId - Source element ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Positions map
+ * @returns {Object} - Flow information
+ */
+export function createBackFlowInfo(flowId, sourceId, targetId, positions) {
+  const sourcePos = positions.get(sourceId);
+  const targetPos = positions.get(targetId);
+
+  return {
+    flowId,
+    sourceId,
+    targetId,
+    isBackFlow: true,  // Mark as back-flow
+    source: {
+      lane: sourcePos.lane,
+      layer: sourcePos.layer,
+      row: sourcePos.row,
+      exitSide: null  // Will be determined in Phase 3
+    },
+    waypoints: [],  // Will be calculated in Phase 3 (Manhattan routing)
+    target: {
+      lane: targetPos.lane,
+      layer: targetPos.layer,
+      row: targetPos.row,
+      entrySide: null  // Will be determined in Phase 3
+    }
+  };
 }

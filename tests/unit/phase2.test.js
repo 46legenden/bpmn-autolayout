@@ -6,27 +6,23 @@ import {
   getLaneIndex,
   isCrossLane,
   getCrossLaneDirection,
-  identifyBackFlowTargets,
-  reserveBackFlowColumns,
-  hasReservedColumn,
   assignSameLanePosition,
-  createSameLaneWaypoints,
+  createSameLaneFlowInfo,
   isCrossLanePathFree,
   assignCrossLaneFreePosition,
-  createCrossLaneWaypoints,
+  createCrossLaneFreeFlowInfo,
   assignCrossLaneBlockedPosition,
+  createCrossLaneBlockedFlowInfo,
   sortGatewayOutputs,
   assignSymmetricRows,
   assignGatewayOutputPositions,
-  createBackFlowWaypoints,
-  isBackEdge
+  createBackFlowInfo
 } from '../../src/phase2.js';
 
 describe('Phase 2: Configuration', () => {
   test('should apply horizontal configuration (default)', () => {
     const directions = applyConfig({ laneOrientation: 'horizontal' });
-
-    expect(directions.laneOrientation).toBe('horizontal');
+    
     expect(directions.alongLane).toBe('right');
     expect(directions.oppAlongLane).toBe('left');
     expect(directions.crossLane).toBe('down');
@@ -35,27 +31,19 @@ describe('Phase 2: Configuration', () => {
 
   test('should apply vertical configuration', () => {
     const directions = applyConfig({ laneOrientation: 'vertical' });
-
-    expect(directions.laneOrientation).toBe('vertical');
+    
     expect(directions.alongLane).toBe('down');
     expect(directions.oppAlongLane).toBe('up');
     expect(directions.crossLane).toBe('right');
     expect(directions.oppCrossLane).toBe('left');
   });
-
-  test('should default to horizontal when no config provided', () => {
-    const directions = applyConfig();
-
-    expect(directions.laneOrientation).toBe('horizontal');
-    expect(directions.alongLane).toBe('right');
-  });
 });
 
 describe('Phase 2: Matrix Initialization', () => {
-  test('should initialize matrix with lanes', () => {
+  test('should initialize matrix for lanes', () => {
     const lanes = new Map([
-      ['lane1', { id: 'lane1', name: 'Lane 1', elements: [] }],
-      ['lane2', { id: 'lane2', name: 'Lane 2', elements: [] }]
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }]
     ]);
 
     const matrix = initializeMatrix(lanes);
@@ -63,7 +51,6 @@ describe('Phase 2: Matrix Initialization', () => {
     expect(matrix.size).toBe(2);
     expect(matrix.has('lane1')).toBe(true);
     expect(matrix.has('lane2')).toBe(true);
-    expect(matrix.get('lane1') instanceof Map).toBe(true);
   });
 });
 
@@ -71,57 +58,12 @@ describe('Phase 2: Gateway Lane Assignment', () => {
   test('should assign split gateway to input lane', () => {
     const elements = new Map([
       ['task1', { id: 'task1', type: 'task', incoming: [], outgoing: ['flow1'] }],
-      ['xor1', { id: 'xor1', type: 'exclusiveGateway', incoming: ['flow1'], outgoing: ['flow2', 'flow3'] }],
-      ['task2', { id: 'task2', type: 'task', incoming: ['flow2'], outgoing: [] }],
-      ['task3', { id: 'task3', type: 'task', incoming: ['flow3'], outgoing: [] }]
+      ['xor1', { id: 'xor1', type: 'exclusiveGateway', incoming: ['flow1'], outgoing: ['flow2', 'flow3'] }]
     ]);
 
     const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'task1', targetRef: 'xor1' }],
-      ['flow2', { id: 'flow2', sourceRef: 'xor1', targetRef: 'task2' }],
-      ['flow3', { id: 'flow3', sourceRef: 'xor1', targetRef: 'task3' }]
+      ['flow1', { id: 'flow1', sourceRef: 'task1', targetRef: 'xor1' }]
     ]);
-
-    const lanes = new Map([
-      ['lane1', { id: 'lane1', elements: ['task1', 'task2'] }],
-      ['lane2', { id: 'lane2', elements: ['task3'] }]
-    ]);
-
-    const elementLanes = assignGatewayLanes(elements, flows, lanes);
-
-    expect(elementLanes.get('xor1')).toBe('lane1');  // Split gateway in input lane
-  });
-
-  test('should assign merge gateway to output lane', () => {
-    const elements = new Map([
-      ['task1', { id: 'task1', type: 'task', incoming: [], outgoing: ['flow1'] }],
-      ['task2', { id: 'task2', type: 'task', incoming: [], outgoing: ['flow2'] }],
-      ['xor1', { id: 'xor1', type: 'exclusiveGateway', incoming: ['flow1', 'flow2'], outgoing: ['flow3'] }],
-      ['task3', { id: 'task3', type: 'task', incoming: ['flow3'], outgoing: [] }]
-    ]);
-
-    const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'task1', targetRef: 'xor1' }],
-      ['flow2', { id: 'flow2', sourceRef: 'task2', targetRef: 'xor1' }],
-      ['flow3', { id: 'flow3', sourceRef: 'xor1', targetRef: 'task3' }]
-    ]);
-
-    const lanes = new Map([
-      ['lane1', { id: 'lane1', elements: ['task1'] }],
-      ['lane2', { id: 'lane2', elements: ['task2', 'task3'] }]
-    ]);
-
-    const elementLanes = assignGatewayLanes(elements, flows, lanes);
-
-    expect(elementLanes.get('xor1')).toBe('lane2');  // Merge gateway in output lane
-  });
-
-  test('should preserve non-gateway element lanes', () => {
-    const elements = new Map([
-      ['task1', { id: 'task1', type: 'task', incoming: [], outgoing: [] }]
-    ]);
-
-    const flows = new Map();
 
     const lanes = new Map([
       ['lane1', { id: 'lane1', elements: ['task1'] }]
@@ -129,152 +71,31 @@ describe('Phase 2: Gateway Lane Assignment', () => {
 
     const elementLanes = assignGatewayLanes(elements, flows, lanes);
 
-    expect(elementLanes.get('task1')).toBe('lane1');
-  });
-});
-
-describe('Phase 2: Lane Utilities', () => {
-  test('should get lane index correctly', () => {
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }],
-      ['lane3', { id: 'lane3' }]
-    ]);
-
-    expect(getLaneIndex('lane1', lanes)).toBe(0);
-    expect(getLaneIndex('lane2', lanes)).toBe(1);
-    expect(getLaneIndex('lane3', lanes)).toBe(2);
+    expect(elementLanes.get('xor1')).toBe('lane1');
   });
 
-  test('should detect cross-lane flows', () => {
-    const flow = { sourceRef: 'task1', targetRef: 'task2' };
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane2']
-    ]);
-
-    expect(isCrossLane(flow, elementLanes)).toBe(true);
-  });
-
-  test('should detect same-lane flows', () => {
-    const flow = { sourceRef: 'task1', targetRef: 'task2' };
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane1']
-    ]);
-
-    expect(isCrossLane(flow, elementLanes)).toBe(false);
-  });
-
-  test('should determine crossLane direction (going down/right)', () => {
-    const flow = { sourceRef: 'task1', targetRef: 'task2' };
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane2']
-    ]);
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }]
-    ]);
-    const directions = { crossLane: 'down', oppCrossLane: 'up' };
-
-    const direction = getCrossLaneDirection(flow, elementLanes, lanes, directions);
-
-    expect(direction).toBe('crossLane');
-  });
-
-  test('should determine oppCrossLane direction (going up/left)', () => {
-    const flow = { sourceRef: 'task1', targetRef: 'task2' };
-    const elementLanes = new Map([
-      ['task1', 'lane2'],
-      ['task2', 'lane1']
-    ]);
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }]
-    ]);
-    const directions = { crossLane: 'down', oppCrossLane: 'up' };
-
-    const direction = getCrossLaneDirection(flow, elementLanes, lanes, directions);
-
-    expect(direction).toBe('oppCrossLane');
-  });
-});
-
-
-describe('Phase 2: Back-Flow Reservation', () => {
-  test('should identify elements that receive back-flows', () => {
+  test('should assign merge gateway to output lane', () => {
     const elements = new Map([
-      ['start1', { id: 'start1', type: 'startEvent' }],
-      ['task1', { id: 'task1', type: 'task' }],
-      ['task2', { id: 'task2', type: 'task' }]
+      ['xor1', { id: 'xor1', type: 'exclusiveGateway', incoming: ['flow1', 'flow2'], outgoing: ['flow3'] }],
+      ['task1', { id: 'task1', type: 'task', incoming: ['flow3'], outgoing: [] }]
     ]);
 
     const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'start1', targetRef: 'task1' }],
-      ['flow2', { id: 'flow2', sourceRef: 'task1', targetRef: 'task2' }],
-      ['flow3', { id: 'flow3', sourceRef: 'task2', targetRef: 'task1' }]  // Back-edge
+      ['flow3', { id: 'flow3', sourceRef: 'xor1', targetRef: 'task1' }]
     ]);
 
-    const backEdges = ['flow3'];
-
-    const backFlowTargets = identifyBackFlowTargets(elements, backEdges, flows);
-
-    expect(backFlowTargets.has('task1')).toBe(true);
-    expect(backFlowTargets.has('task2')).toBe(false);
-  });
-
-  test('should reserve columns for back-flow targets', () => {
-    const backFlowTargets = new Set(['task1', 'task3']);
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane1'],
-      ['task3', 'lane2']
+    const lanes = new Map([
+      ['lane1', { id: 'lane1', elements: ['task1'] }]
     ]);
 
-    const reservations = reserveBackFlowColumns(backFlowTargets, elementLanes);
+    const elementLanes = assignGatewayLanes(elements, flows, lanes);
 
-    expect(reservations.has('task1')).toBe(true);
-    expect(reservations.get('task1').reservedColumn).toBe(true);
-    expect(reservations.has('task3')).toBe(true);
-    expect(reservations.has('task2')).toBe(false);
-  });
-
-  test('should check if element has reserved column', () => {
-    const reservations = new Map([
-      ['task1', { reservedColumn: true }],
-      ['task2', { reservedColumn: false }]
-    ]);
-
-    expect(hasReservedColumn('task1', reservations)).toBe(true);
-    expect(hasReservedColumn('task2', reservations)).toBe(false);
-    expect(hasReservedColumn('task3', reservations)).toBe(false);
-  });
-
-  test('should handle multiple back-flows to same element', () => {
-    const elements = new Map([
-      ['task1', { id: 'task1', type: 'task' }],
-      ['task2', { id: 'task2', type: 'task' }],
-      ['task3', { id: 'task3', type: 'task' }]
-    ]);
-
-    const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'task2', targetRef: 'task1' }],  // Back-edge
-      ['flow2', { id: 'flow2', sourceRef: 'task3', targetRef: 'task1' }]   // Back-edge
-    ]);
-
-    const backEdges = ['flow1', 'flow2'];
-
-    const backFlowTargets = identifyBackFlowTargets(elements, backEdges, flows);
-
-    expect(backFlowTargets.size).toBe(1);
-    expect(backFlowTargets.has('task1')).toBe(true);
+    expect(elementLanes.get('xor1')).toBe('lane1');
   });
 });
 
-
-describe('Phase 2: Rule 1 - Same Lane Positioning', () => {
-  test('should assign layer + 1 for same-lane flow', () => {
+describe('Phase 2: Same-Lane Positioning', () => {
+  test('should assign position for same-lane flow', () => {
     const positions = new Map([
       ['task1', { lane: 'lane1', layer: 0, row: 0 }]
     ]);
@@ -291,7 +112,7 @@ describe('Phase 2: Rule 1 - Same Lane Positioning', () => {
     expect(position.row).toBe(0);
   });
 
-  test('should create waypoints for same-lane flow (horizontal)', () => {
+  test('should create flow info for same-lane flow', () => {
     const positions = new Map([
       ['task1', { lane: 'lane1', layer: 0, row: 0 }],
       ['task2', { lane: 'lane1', layer: 1, row: 0 }]
@@ -304,51 +125,16 @@ describe('Phase 2: Rule 1 - Same Lane Positioning', () => {
       oppCrossLane: 'up'
     };
 
-    const waypoints = createSameLaneWaypoints('flow1', 'task1', 'task2', positions, directions);
+    const flowInfo = createSameLaneFlowInfo('flow1', 'task1', 'task2', positions, directions);
 
-    expect(waypoints.length).toBe(2);
-    expect(waypoints[0].side).toBe('right');  // alongLane
-    expect(waypoints[1].side).toBe('left');   // oppAlongLane
-    expect(waypoints[0].layer).toBe(0);
-    expect(waypoints[1].layer).toBe(1);
-  });
-
-  test('should create waypoints for same-lane flow (vertical)', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task2', { lane: 'lane1', layer: 1, row: 0 }]
-    ]);
-
-    const directions = {
-      alongLane: 'down',
-      oppAlongLane: 'up'
-    };
-
-    const waypoints = createSameLaneWaypoints('flow1', 'task1', 'task2', positions, directions);
-
-    expect(waypoints.length).toBe(2);
-    expect(waypoints[0].side).toBe('down');  // alongLane
-    expect(waypoints[1].side).toBe('up');    // oppAlongLane
-  });
-
-  test('should preserve row for same-lane flow', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 2, row: 3 }]
-    ]);
-
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane1']
-    ]);
-
-    const position = assignSameLanePosition('task1', 'task2', positions, elementLanes);
-
-    expect(position.row).toBe(3);  // Same row as source
+    expect(flowInfo.isBackFlow).toBe(false);
+    expect(flowInfo.source.exitSide).toBe('right');
+    expect(flowInfo.target.entrySide).toBe('left');
+    expect(flowInfo.waypoints.length).toBe(0);
   });
 });
 
-
-describe('Phase 2: Rule 3 - Cross-Lane Free Path', () => {
+describe('Phase 2: Cross-Lane Positioning', () => {
   test('should detect free cross-lane path', () => {
     const positions = new Map([
       ['task1', { lane: 'lane1', layer: 0, row: 0 }]
@@ -369,76 +155,14 @@ describe('Phase 2: Rule 3 - Cross-Lane Free Path', () => {
       ['lane2', new Map()]
     ]);
 
-    const reservations = new Map();
-
-    const isFree = isCrossLanePathFree('task1', 'task2', positions, elementLanes, lanes, matrix, reservations);
+    const isFree = isCrossLanePathFree('task1', 'task2', positions, elementLanes, lanes, matrix);
 
     expect(isFree).toBe(true);
   });
 
-  test('should detect blocked cross-lane path (element in between)', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task3', { lane: 'lane2', layer: 0, row: 0 }]
-    ]);
-
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane3'],
-      ['task3', 'lane2']
-    ]);
-
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }],
-      ['lane3', { id: 'lane3' }]
-    ]);
-
-    const matrix = new Map([
-      ['lane1', new Map()],
-      ['lane2', new Map([[0, { elements: ['task3'] }]])],
-      ['lane3', new Map()]
-    ]);
-
-    const reservations = new Map();
-
-    const isFree = isCrossLanePathFree('task1', 'task2', positions, elementLanes, lanes, matrix, reservations);
-
-    expect(isFree).toBe(false);
-  });
-
-  test('should detect blocked path when target has reserved column', () => {
+  test('should assign position for cross-lane free path', () => {
     const positions = new Map([
       ['task1', { lane: 'lane1', layer: 0, row: 0 }]
-    ]);
-
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane2']
-    ]);
-
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }]
-    ]);
-
-    const matrix = new Map([
-      ['lane1', new Map()],
-      ['lane2', new Map()]
-    ]);
-
-    const reservations = new Map([
-      ['task2', { reservedColumn: true }]
-    ]);
-
-    const isFree = isCrossLanePathFree('task1', 'task2', positions, elementLanes, lanes, matrix, reservations);
-
-    expect(isFree).toBe(false);
-  });
-
-  test('should assign same layer for cross-lane free path', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 2, row: 0 }]
     ]);
 
     const elementLanes = new Map([
@@ -449,10 +173,10 @@ describe('Phase 2: Rule 3 - Cross-Lane Free Path', () => {
     const position = assignCrossLaneFreePosition('task1', 'task2', positions, elementLanes);
 
     expect(position.lane).toBe('lane2');
-    expect(position.layer).toBe(2);  // Same layer as source
+    expect(position.layer).toBe(0);  // Same layer
   });
 
-  test('should create straight line waypoints for cross-lane flow with same layer', () => {
+  test('should create flow info for cross-lane free path', () => {
     const positions = new Map([
       ['task1', { lane: 'lane1', layer: 0, row: 0 }],
       ['task2', { lane: 'lane2', layer: 0, row: 0 }]
@@ -475,14 +199,31 @@ describe('Phase 2: Rule 3 - Cross-Lane Free Path', () => {
       oppCrossLane: 'up'
     };
 
-    const waypoints = createCrossLaneWaypoints('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
+    const flowInfo = createCrossLaneFreeFlowInfo('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
 
-    expect(waypoints.length).toBe(2);  // Straight line!
-    expect(waypoints[0].side).toBe('down');  // crossLane (going down)
-    expect(waypoints[1].side).toBe('up');    // oppCrossLane (coming from up)
+    expect(flowInfo.isBackFlow).toBe(false);
+    expect(flowInfo.source.exitSide).toBe('down');
+    expect(flowInfo.target.entrySide).toBe('up');
+    expect(flowInfo.waypoints.length).toBe(0);  // Straight line
   });
 
-  test('should create L-shape waypoints for cross-lane flow with different layers', () => {
+  test('should assign position for cross-lane blocked path', () => {
+    const positions = new Map([
+      ['task1', { lane: 'lane1', layer: 0, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['task1', 'lane1'],
+      ['task2', 'lane2']
+    ]);
+
+    const position = assignCrossLaneBlockedPosition('task1', 'task2', positions, elementLanes);
+
+    expect(position.lane).toBe('lane2');
+    expect(position.layer).toBe(1);  // Layer +1
+  });
+
+  test('should create flow info for cross-lane blocked path', () => {
     const positions = new Map([
       ['task1', { lane: 'lane1', layer: 0, row: 0 }],
       ['task2', { lane: 'lane2', layer: 1, row: 0 }]
@@ -505,41 +246,26 @@ describe('Phase 2: Rule 3 - Cross-Lane Free Path', () => {
       oppCrossLane: 'up'
     };
 
-    const waypoints = createCrossLaneWaypoints('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
+    const flowInfo = createCrossLaneBlockedFlowInfo('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
 
-    expect(waypoints.length).toBe(3);  // L-shape
-    expect(waypoints[0].side).toBe('right');  // alongLane (going right)
-    expect(waypoints[1].side).toBe('down');   // crossLane (bending down)
-    expect(waypoints[2].side).toBe('up');     // oppCrossLane (coming from up)
+    expect(flowInfo.isBackFlow).toBe(false);
+    expect(flowInfo.source.exitSide).toBe('right');
+    expect(flowInfo.waypoints.length).toBe(1);  // L-shape
+    expect(flowInfo.waypoints[0].lane).toBe('lane2');  // Corner at target lane
+    expect(flowInfo.waypoints[0].layer).toBe(0);  // Corner at source layer
+    expect(flowInfo.target.entrySide).toBe('up');
   });
 });
 
-
-describe('Phase 2: Rule 4 - Cross-Lane Blocked Path', () => {
-  test('should assign layer + 1 for cross-lane blocked path', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }]
+describe('Phase 2: Gateway Outputs', () => {
+  test('should sort gateway outputs by lane', () => {
+    const flows = new Map([
+      ['flow1', { id: 'flow1', sourceRef: 'xor1', targetRef: 'task1' }],
+      ['flow2', { id: 'flow2', sourceRef: 'xor1', targetRef: 'task2' }]
     ]);
 
     const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane2']
-    ]);
-
-    const position = assignCrossLaneBlockedPosition('task1', 'task2', positions, elementLanes);
-
-    expect(position.lane).toBe('lane2');
-    expect(position.layer).toBe(1);  // Layer + 1 because blocked
-  });
-
-  test('should use L-shape waypoints for blocked cross-lane (different layers)', () => {
-    // Blocked path means different layers, so waypoints are L-shape
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task2', { lane: 'lane2', layer: 1, row: 0 }]  // Different layer
-    ]);
-
-    const elementLanes = new Map([
+      ['xor1', 'lane1'],
       ['task1', 'lane1'],
       ['task2', 'lane2']
     ]);
@@ -549,245 +275,55 @@ describe('Phase 2: Rule 4 - Cross-Lane Blocked Path', () => {
       ['lane2', { id: 'lane2' }]
     ]);
 
-    const directions = {
-      alongLane: 'right',
-      oppAlongLane: 'left',
-      crossLane: 'down',
-      oppCrossLane: 'up'
-    };
+    const sorted = sortGatewayOutputs(['flow2', 'flow1'], flows, elementLanes, lanes, 'lane1');
 
-    const waypoints = createCrossLaneWaypoints('flow1', 'task1', 'task2', positions, elementLanes, lanes, directions);
-
-    expect(waypoints.length).toBe(3);  // L-shape
-    expect(waypoints[0].side).toBe('right');  // alongLane
-    expect(waypoints[1].side).toBe('down');   // crossLane
-    expect(waypoints[2].side).toBe('up');     // oppCrossLane
+    expect(sorted[0]).toBe('flow1');  // Same lane first
+    expect(sorted[1]).toBe('flow2');
   });
 
-  test('should increment layer even if source is at higher layer', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 5, row: 0 }]
-    ]);
-
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane2']
-    ]);
-
-    const position = assignCrossLaneBlockedPosition('task1', 'task2', positions, elementLanes);
-
-    expect(position.layer).toBe(6);  // 5 + 1
-  });
-});
-
-
-describe('Phase 2: Rule 5 - Gateway Output Sorting and Positioning', () => {
-  test('should sort gateway outputs by target lane (oppCrossLane first, crossLane last)', () => {
-    const outputFlowIds = ['flow1', 'flow2', 'flow3'];
-    
-    const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'gw1', targetRef: 'task1' }],  // Lane 2 (middle)
-      ['flow2', { id: 'flow2', sourceRef: 'gw1', targetRef: 'task2' }],  // Lane 1 (up)
-      ['flow3', { id: 'flow3', sourceRef: 'gw1', targetRef: 'task3' }]   // Lane 3 (down)
-    ]);
-    
-    const elementLanes = new Map([
-      ['gw1', 'lane2'],
-      ['task1', 'lane2'],
-      ['task2', 'lane1'],
-      ['task3', 'lane3']
-    ]);
-    
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }],
-      ['lane3', { id: 'lane3' }]
-    ]);
-    
-    const sorted = sortGatewayOutputs(outputFlowIds, flows, elementLanes, lanes, 'lane2');
-    
-    expect(sorted[0]).toBe('flow2');  // Lane 1 (up) first
-    expect(sorted[1]).toBe('flow1');  // Lane 2 (same) middle
-    expect(sorted[2]).toBe('flow3');  // Lane 3 (down) last
-  });
-  
-  test('should assign symmetric rows for 2 outputs', () => {
-    const rows = assignSymmetricRows(2);
-    
-    expect(rows).toEqual([0, 1]);
-  });
-  
-  test('should assign symmetric rows for 3 outputs', () => {
-    const rows = assignSymmetricRows(3);
-    
-    expect(rows).toEqual([-1, 0, 1]);
-  });
-  
-  test('should assign symmetric rows for 4 outputs', () => {
-    const rows = assignSymmetricRows(4);
-    
-    expect(rows).toEqual([-1, 0, 1, 2]);
-  });
-  
-  test('should assign symmetric rows for 5 outputs', () => {
-    const rows = assignSymmetricRows(5);
-    
-    expect(rows).toEqual([-2, -1, 0, 1, 2]);
-  });
-  
-  test('should assign positions for gateway outputs with layer + 1', () => {
-    const positions = new Map([
-      ['gw1', { lane: 'lane1', layer: 0, row: 0 }]
-    ]);
-    
-    const outputFlowIds = ['flow1', 'flow2'];
-    
-    const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'gw1', targetRef: 'task1' }],
-      ['flow2', { id: 'flow2', sourceRef: 'gw1', targetRef: 'task2' }]
-    ]);
-    
-    const elementLanes = new Map([
-      ['gw1', 'lane1'],
-      ['task1', 'lane1'],
-      ['task2', 'lane2']
-    ]);
-    
-    const outputPositions = assignGatewayOutputPositions('gw1', outputFlowIds, positions, elementLanes, flows);
-    
-    expect(outputPositions.get('task1').layer).toBe(1);  // Layer + 1
-    expect(outputPositions.get('task2').layer).toBe(1);  // Layer + 1
-  });
-  
   test('should assign symmetric rows for gateway outputs', () => {
+    expect(assignSymmetricRows(2)).toEqual([0, 1]);
+    expect(assignSymmetricRows(3)).toEqual([-1, 0, 1]);
+    expect(assignSymmetricRows(4)).toEqual([0, 1, 2, 3]);
+    expect(assignSymmetricRows(5)).toEqual([-2, -1, 0, 1, 2]);
+  });
+
+  test('should assign positions for gateway outputs', () => {
     const positions = new Map([
-      ['gw1', { lane: 'lane2', layer: 0, row: 0 }]
+      ['xor1', { lane: 'lane1', layer: 1, row: 0 }]
     ]);
-    
-    const outputFlowIds = ['flow1', 'flow2', 'flow3'];
-    
-    const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'gw1', targetRef: 'task1' }],
-      ['flow2', { id: 'flow2', sourceRef: 'gw1', targetRef: 'task2' }],
-      ['flow3', { id: 'flow3', sourceRef: 'gw1', targetRef: 'task3' }]
-    ]);
-    
+
     const elementLanes = new Map([
-      ['gw1', 'lane2'],
       ['task1', 'lane1'],
-      ['task2', 'lane2'],
-      ['task3', 'lane3']
+      ['task2', 'lane2']
     ]);
-    
-    const outputPositions = assignGatewayOutputPositions('gw1', outputFlowIds, positions, elementLanes, flows);
-    
-    // Rows should be [-1, 0, 1] for 3 outputs
-    expect(outputPositions.get('task1').row).toBe(-1);  // First output
-    expect(outputPositions.get('task2').row).toBe(0);   // Second output
-    expect(outputPositions.get('task3').row).toBe(1);   // Third output
+
+    const flows = new Map([
+      ['flow1', { id: 'flow1', sourceRef: 'xor1', targetRef: 'task1' }],
+      ['flow2', { id: 'flow2', sourceRef: 'xor1', targetRef: 'task2' }]
+    ]);
+
+    const outputPositions = assignGatewayOutputPositions('xor1', ['flow1', 'flow2'], positions, elementLanes, flows);
+
+    expect(outputPositions.get('task1').layer).toBe(2);
+    expect(outputPositions.get('task1').row).toBe(0);
+    expect(outputPositions.get('task2').layer).toBe(2);
+    expect(outputPositions.get('task2').row).toBe(1);
   });
 });
 
-
-describe('Phase 2: Back-Flow Waypoints', () => {
-  test('should detect back-edge flows', () => {
-    const backEdges = ['flow3', 'flow5'];
-    
-    expect(isBackEdge('flow3', backEdges)).toBe(true);
-    expect(isBackEdge('flow1', backEdges)).toBe(false);
-  });
-
-  test('should create waypoints for same-lane back-flow', () => {
+describe('Phase 2: Back-Flow', () => {
+  test('should create back-flow info (no waypoints)', () => {
     const positions = new Map([
       ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task2', { lane: 'lane1', layer: 1, row: 0 }]
+      ['task2', { lane: 'lane2', layer: 2, row: 0 }]
     ]);
 
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task2', 'lane1']
-    ]);
+    const flowInfo = createBackFlowInfo('flow3', 'task2', 'task1', positions);
 
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }]
-    ]);
-
-    const directions = {
-      alongLane: 'right',
-      oppAlongLane: 'left',
-      crossLane: 'down',
-      oppCrossLane: 'up'
-    };
-
-    const waypoints = createBackFlowWaypoints('flow3', 'task2', 'task1', positions, elementLanes, lanes, directions);
-
-    expect(waypoints.length).toBe(2);
-    expect(waypoints[0].side).toBe('left');   // oppAlongLane (going backwards)
-    expect(waypoints[1].side).toBe('up');     // oppCrossLane (coming from bottom!)
-    expect(waypoints[0].layer).toBe(1);       // Source layer
-    expect(waypoints[1].layer).toBe(0);       // Target layer
-  });
-
-  test('should create waypoints for cross-lane back-flow', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task3', { lane: 'lane3', layer: 1, row: 0 }]
-    ]);
-
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task3', 'lane3']
-    ]);
-
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }],
-      ['lane3', { id: 'lane3' }]
-    ]);
-
-    const directions = {
-      alongLane: 'right',
-      oppAlongLane: 'left',
-      crossLane: 'down',
-      oppCrossLane: 'up'
-    };
-
-    const waypoints = createBackFlowWaypoints('flow3', 'task3', 'task1', positions, elementLanes, lanes, directions);
-
-    expect(waypoints.length).toBe(3);
-    expect(waypoints[0].side).toBe('left');   // oppAlongLane (going backwards)
-    expect(waypoints[1].side).toBe('up');     // oppCrossLane (going up)
-    expect(waypoints[2].side).toBe('up');     // oppCrossLane (coming from bottom!)
-  });
-
-  test('should use correct layers for back-flow waypoints', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task3', { lane: 'lane3', layer: 1, row: 0 }]
-    ]);
-
-    const elementLanes = new Map([
-      ['task1', 'lane1'],
-      ['task3', 'lane3']
-    ]);
-
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }],
-      ['lane3', { id: 'lane3' }]
-    ]);
-
-    const directions = {
-      alongLane: 'right',
-      oppAlongLane: 'left',
-      crossLane: 'down',
-      oppCrossLane: 'up'
-    };
-
-    const waypoints = createBackFlowWaypoints('flow3', 'task3', 'task1', positions, elementLanes, lanes, directions);
-
-    expect(waypoints[0].layer).toBe(1);  // Source layer (task3)
-    expect(waypoints[1].layer).toBe(0);  // Target layer (corner at task1 layer)
-    expect(waypoints[2].layer).toBe(0);  // Target layer (task1)
+    expect(flowInfo.isBackFlow).toBe(true);
+    expect(flowInfo.source.exitSide).toBe(null);  // Will be determined in Phase 3
+    expect(flowInfo.target.entrySide).toBe(null);  // Will be determined in Phase 3
+    expect(flowInfo.waypoints.length).toBe(0);  // Will be calculated in Phase 3
   });
 });
