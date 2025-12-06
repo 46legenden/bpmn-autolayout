@@ -139,7 +139,7 @@ describe('Phase 2: Simple Integration Example', () => {
       console.log(`    source: ${info.sourceId} (${info.source.lane}, ${info.source.layer}, ${info.source.row}) exitSide=${info.source.exitSide}`);
       if (info.waypoints.length > 0) {
         info.waypoints.forEach((wp, idx) => {
-          console.log(`    waypoint[${idx}]: (${wp.lane}, ${wp.layer}, ${wp.row}) side=${wp.side}`);
+          console.log(`    waypoint[${idx}]: (${wp.lane}, ${wp.layer}, ${wp.row})`);
         });
       }
       console.log(`    target: ${info.targetId} (${info.target.lane}, ${info.target.layer}, ${info.target.row}) entrySide=${info.target.entrySide}`);

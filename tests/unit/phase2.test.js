@@ -253,6 +253,7 @@ describe('Phase 2: Cross-Lane Positioning', () => {
     expect(flowInfo.waypoints.length).toBe(1);  // L-shape
     expect(flowInfo.waypoints[0].lane).toBe('lane2');  // Corner at target lane
     expect(flowInfo.waypoints[0].layer).toBe(0);  // Corner at source layer
+    expect(flowInfo.waypoints[0].row).toBe(0);
     expect(flowInfo.target.entrySide).toBe('up');
   });
 });

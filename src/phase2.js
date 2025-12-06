@@ -366,8 +366,7 @@ export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, posit
       {
         lane: targetPos.lane,
         layer: sourcePos.layer,
-        row: sourcePos.row,
-        side: crossSide
+        row: sourcePos.row
       }
     ],
     target: {
