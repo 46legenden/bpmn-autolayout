@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   id="simple-3-lane-process">
+  
+  <bpmn:process id="Process_1">
+    <!-- Start Event -->
+    <bpmn:startEvent id="start1" name="Start">
+      <bpmn:outgoing>flow1</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- XOR Gateway (Split) -->
+    <bpmn:exclusiveGateway id="xor1" name="Decision">
+      <bpmn:incoming>flow1</bpmn:incoming>
+      <bpmn:outgoing>flow2</bpmn:outgoing>
+      <bpmn:outgoing>flow3</bpmn:outgoing>
+      <bpmn:outgoing>flow4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Task 1 (Management Lane) -->
+    <bpmn:task id="task1" name="Review Request">
+      <bpmn:incoming>flow2</bpmn:incoming>
+      <bpmn:outgoing>flow5</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Task 2 (IT Lane) -->
+    <bpmn:task id="task2" name="Implement Solution">
+      <bpmn:incoming>flow3</bpmn:incoming>
+      <bpmn:outgoing>flow6</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Task 3 (Finance Lane) -->
+    <bpmn:task id="task3" name="Process Payment">
+      <bpmn:incoming>flow4</bpmn:incoming>
+      <bpmn:outgoing>flow7</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="end1" name="End">
+      <bpmn:incoming>flow5</bpmn:incoming>
+      <bpmn:incoming>flow6</bpmn:incoming>
+      <bpmn:incoming>flow7</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow1" sourceRef="start1" targetRef="xor1"/>
+    <bpmn:sequenceFlow id="flow2" sourceRef="xor1" targetRef="task1"/>
+    <bpmn:sequenceFlow id="flow3" sourceRef="xor1" targetRef="task2"/>
+    <bpmn:sequenceFlow id="flow4" sourceRef="xor1" targetRef="task3"/>
+    <bpmn:sequenceFlow id="flow5" sourceRef="task1" targetRef="end1"/>
+    <bpmn:sequenceFlow id="flow6" sourceRef="task2" targetRef="end1"/>
+    <bpmn:sequenceFlow id="flow7" sourceRef="task3" targetRef="end1"/>
+    
+    <!-- Lanes -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="lane1" name="Management">
+        <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>xor1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane2" name="IT">
+        <bpmn:flowNodeRef>task2</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane3" name="Finance">
+        <bpmn:flowNodeRef>task3</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+  </bpmn:process>
+</bpmn:definitions>
