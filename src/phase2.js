@@ -9,6 +9,8 @@
  * - Back-flows are only marked, routing happens in Phase 3
  */
 
+import { calculateWaypoint } from './waypoint-helper.js';
+
 /**
  * Apply configuration and define abstract directions
  * @param {Object} config - { laneOrientation: "horizontal" | "vertical" }
@@ -350,6 +352,11 @@ export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, posit
   const oppCrossSide = crossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
 
   // Different layer: L-shape (alongLane → crossLane → oppCrossLane)
+  const exitSide = directions.alongLane;
+  const entrySide = oppCrossSide;
+
+  const waypoint = calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, directions);
+
   return {
     flowId,
     sourceId,
@@ -359,21 +366,14 @@ export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, posit
       lane: sourcePos.lane,
       layer: sourcePos.layer,
       row: sourcePos.row,
-      exitSide: directions.alongLane
+      exitSide
     },
-    waypoints: [
-      // Corner at target lane, source layer
-      {
-        lane: targetPos.lane,
-        layer: sourcePos.layer,
-        row: sourcePos.row
-      }
-    ],
+    waypoints: [waypoint],
     target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
       row: targetPos.row,
-      entrySide: oppCrossSide
+      entrySide
     }
   };
 }
@@ -493,6 +493,95 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   }
 
   return outputPositions;
+}
+
+/**
+ * Create flow information for gateway output
+ * @param {string} flowId - Flow ID
+ * @param {string} gatewayId - Gateway ID
+ * @param {string} targetId - Target element ID
+ * @param {Map} positions - Positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} lanes - Lane map
+ * @param {Object} directions - Direction mappings
+ * @returns {Object} - Flow information
+ */
+export function createGatewayOutputFlowInfo(flowId, gatewayId, targetId, positions, elementLanes, lanes, directions) {
+  const gatewayPos = positions.get(gatewayId);
+  const targetPos = positions.get(targetId);
+
+  // Check if same row (no waypoint needed)
+  if (gatewayPos.row === targetPos.row && gatewayPos.lane === targetPos.lane) {
+    // Same lane, same row: straight line
+    return {
+      flowId,
+      sourceId: gatewayId,
+      targetId,
+      isBackFlow: false,
+      source: {
+        lane: gatewayPos.lane,
+        layer: gatewayPos.layer,
+        row: gatewayPos.row,
+        exitSide: directions.alongLane
+      },
+      waypoints: [],
+      target: {
+        lane: targetPos.lane,
+        layer: targetPos.layer,
+        row: targetPos.row,
+        entrySide: directions.oppAlongLane
+      }
+    };
+  }
+
+  // Different row or different lane: waypoint needed
+  // Determine exitSide based on vertical relation
+  let exitSide;
+  
+  const gatewayLane = elementLanes.get(gatewayId);
+  const targetLane = elementLanes.get(targetId);
+  const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
+  const targetLaneIndex = getLaneIndex(targetLane, lanes);
+  
+  if (targetLaneIndex === gatewayLaneIndex) {
+    // Same lane: use row comparison
+    if (targetPos.row > gatewayPos.row) {
+      exitSide = directions.crossLane;  // Target below → go down first
+    } else {
+      exitSide = directions.oppCrossLane;  // Target above → go up first
+    }
+  } else {
+    // Different lanes: use lane ordering only
+    if (targetLaneIndex > gatewayLaneIndex) {
+      exitSide = directions.crossLane;  // Target lane is below → go down first
+    } else {
+      exitSide = directions.oppCrossLane;  // Target lane is above → go up first
+    }
+  }
+  
+  const entrySide = directions.oppAlongLane;  // Comes in from left
+
+  const waypoint = calculateWaypoint(gatewayPos, targetPos, exitSide, entrySide, directions);
+
+  return {
+    flowId,
+    sourceId: gatewayId,
+    targetId,
+    isBackFlow: false,
+    source: {
+      lane: gatewayPos.lane,
+      layer: gatewayPos.layer,
+      row: gatewayPos.row,
+      exitSide
+    },
+    waypoints: [waypoint],
+    target: {
+      lane: targetPos.lane,
+      layer: targetPos.layer,
+      row: targetPos.row,
+      entrySide
+    }
+  };
 }
 
 /**

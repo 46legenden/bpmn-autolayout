@@ -8,6 +8,7 @@ import {
   sortGatewayOutputs,
   isCrossLanePathFree,
   createSameLaneFlowInfo,
+  createGatewayOutputFlowInfo,
   createCrossLaneFreeFlowInfo,
   createCrossLaneBlockedFlowInfo
 } from '../../src/phase2.js';
@@ -113,19 +114,14 @@ describe('Phase 2: Complex Example 1 - Gateway with 3 Outputs', () => {
     // flow1: start1 → xor1 (same-lane)
     flowInfos.set('flow1', createSameLaneFlowInfo('flow1', 'start1', 'xor1', positions, directions));
 
-    // flow2: xor1 → taskA (same-lane)
-    flowInfos.set('flow2', createSameLaneFlowInfo('flow2', 'xor1', 'taskA', positions, directions));
+    // flow2: xor1 → taskA (gateway output)
+    flowInfos.set('flow2', createGatewayOutputFlowInfo('flow2', 'xor1', 'taskA', positions, directions));
 
-    // flow3: xor1 → taskB (same-lane)
-    flowInfos.set('flow3', createSameLaneFlowInfo('flow3', 'xor1', 'taskB', positions, directions));
+    // flow3: xor1 → taskB (gateway output)
+    flowInfos.set('flow3', createGatewayOutputFlowInfo('flow3', 'xor1', 'taskB', positions, directions));
 
-    // flow4: xor1 → taskC (cross-lane)
-    const flow4PathFree = isCrossLanePathFree('xor1', 'taskC', positions, elementLanes, lanes, matrix);
-    if (flow4PathFree) {
-      flowInfos.set('flow4', createCrossLaneFreeFlowInfo('flow4', 'xor1', 'taskC', positions, elementLanes, lanes, directions));
-    } else {
-      flowInfos.set('flow4', createCrossLaneBlockedFlowInfo('flow4', 'xor1', 'taskC', positions, elementLanes, lanes, directions));
-    }
+    // flow4: xor1 → taskC (gateway output)
+    flowInfos.set('flow4', createGatewayOutputFlowInfo('flow4', 'xor1', 'taskC', positions, directions));
 
     console.log('\nFlow Infos:');
     flowInfos.forEach((info, flowId) => {
@@ -145,16 +141,25 @@ describe('Phase 2: Complex Example 1 - Gateway with 3 Outputs', () => {
     expect(flow1Info.target.entrySide).toBe('left');
 
     const flow2Info = flowInfos.get('flow2');
-    expect(flow2Info.source.exitSide).toBe('right');
+    expect(flow2Info.source.exitSide).toBe('right');  // Same row, no waypoint
     expect(flow2Info.target.entrySide).toBe('left');
+    expect(flow2Info.waypoints.length).toBe(0);
 
     const flow3Info = flowInfos.get('flow3');
-    expect(flow3Info.source.exitSide).toBe('right');
+    expect(flow3Info.source.exitSide).toBe('down');  // Different row, waypoint needed
     expect(flow3Info.target.entrySide).toBe('left');
+    expect(flow3Info.waypoints.length).toBe(1);
+    expect(flow3Info.waypoints[0].lane).toBe('lane1');
+    expect(flow3Info.waypoints[0].layer).toBe(1);  // Gateway layer!
+    expect(flow3Info.waypoints[0].row).toBe(1);    // Target row
 
     const flow4Info = flowInfos.get('flow4');
-    expect(flow4Info.source.exitSide).toBe('down');  // Cross-lane
-    expect(flow4Info.target.entrySide).toBe('up');
+    expect(flow4Info.source.exitSide).toBe('down');  // Cross-lane, waypoint needed
+    expect(flow4Info.target.entrySide).toBe('left');
+    expect(flow4Info.waypoints.length).toBe(1);
+    expect(flow4Info.waypoints[0].lane).toBe('lane2');  // Target lane
+    expect(flow4Info.waypoints[0].layer).toBe(1);       // Gateway layer!
+    expect(flow4Info.waypoints[0].row).toBe(0);         // Target row
 
     console.log('\n=== COMPLEX TEST 1 PASSED ===\n');
   });

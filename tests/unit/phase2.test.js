@@ -16,6 +16,7 @@ import {
   sortGatewayOutputs,
   assignSymmetricRows,
   assignGatewayOutputPositions,
+  createGatewayOutputFlowInfo,
   createBackFlowInfo
 } from '../../src/phase2.js';
 
@@ -251,8 +252,8 @@ describe('Phase 2: Cross-Lane Positioning', () => {
     expect(flowInfo.isBackFlow).toBe(false);
     expect(flowInfo.source.exitSide).toBe('right');
     expect(flowInfo.waypoints.length).toBe(1);  // L-shape
-    expect(flowInfo.waypoints[0].lane).toBe('lane2');  // Corner at target lane
-    expect(flowInfo.waypoints[0].layer).toBe(0);  // Corner at source layer
+    expect(flowInfo.waypoints[0].lane).toBe('lane1');  // exitSide=right: lane stays from source
+    expect(flowInfo.waypoints[0].layer).toBe(1);  // entrySide=up: layer stays from target
     expect(flowInfo.waypoints[0].row).toBe(0);
     expect(flowInfo.target.entrySide).toBe('up');
   });
@@ -310,6 +311,136 @@ describe('Phase 2: Gateway Outputs', () => {
     expect(outputPositions.get('task1').row).toBe(0);  // Same-lane
     expect(outputPositions.get('task2').layer).toBe(2);
     expect(outputPositions.get('task2').row).toBe(0);  // Cross-lane, always row 0
+  });
+
+  test('should create gateway output flow info - same lane, same row (straight forward)', () => {
+    const positions = new Map([
+      ['xor1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task1', { lane: 'lane1', layer: 1, row: 0 }]
+    ]);
+
+    const elementLanes = new Map([
+      ['xor1', 'lane1'],
+      ['task1', 'lane1']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }]
+    ]);
+
+    const directions = {
+      laneOrientation: 'horizontal',
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const flowInfo = createGatewayOutputFlowInfo('flow1', 'xor1', 'task1', positions, elementLanes, lanes, directions);
+
+    expect(flowInfo.source.exitSide).toBe('right');
+    expect(flowInfo.target.entrySide).toBe('left');
+    expect(flowInfo.waypoints.length).toBe(0);
+  });
+
+  test('should create gateway output flow info - same lane, target below (go down first)', () => {
+    const positions = new Map([
+      ['xor1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task1', { lane: 'lane1', layer: 1, row: 1 }]  // row 1 > row 0
+    ]);
+
+    const elementLanes = new Map([
+      ['xor1', 'lane1'],
+      ['task1', 'lane1']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }]
+    ]);
+
+    const directions = {
+      laneOrientation: 'horizontal',
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const flowInfo = createGatewayOutputFlowInfo('flow1', 'xor1', 'task1', positions, elementLanes, lanes, directions);
+
+    expect(flowInfo.source.exitSide).toBe('down');  // Target below → go down first
+    expect(flowInfo.target.entrySide).toBe('left');
+    expect(flowInfo.waypoints.length).toBe(1);
+    expect(flowInfo.waypoints[0].lane).toBe('lane1');
+    expect(flowInfo.waypoints[0].layer).toBe(0);  // exitSide=down: layer stays from source
+    expect(flowInfo.waypoints[0].row).toBe(1);    // entrySide=left: row from target
+  });
+
+  test('should create gateway output flow info - different lanes, target lane below (go down first)', () => {
+    const positions = new Map([
+      ['xor1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task1', { lane: 'lane2', layer: 1, row: 0 }]  // lane2 is below lane1
+    ]);
+
+    const elementLanes = new Map([
+      ['xor1', 'lane1'],
+      ['task1', 'lane2']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }],
+      ['lane2', { id: 'lane2' }]
+    ]);
+
+    const directions = {
+      laneOrientation: 'horizontal',
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const flowInfo = createGatewayOutputFlowInfo('flow1', 'xor1', 'task1', positions, elementLanes, lanes, directions);
+
+    expect(flowInfo.source.exitSide).toBe('down');  // Target lane below → go down first
+    expect(flowInfo.target.entrySide).toBe('left');
+    expect(flowInfo.waypoints.length).toBe(1);
+    expect(flowInfo.waypoints[0].lane).toBe('lane2');  // entrySide=left: lane from target
+    expect(flowInfo.waypoints[0].layer).toBe(0);       // exitSide=down: layer stays from source
+    expect(flowInfo.waypoints[0].row).toBe(0);         // entrySide=left: row from target
+  });
+
+  test('should create gateway output flow info - same lane, target above (go up first)', () => {
+    const positions = new Map([
+      ['xor1', { lane: 'lane1', layer: 0, row: 0 }],
+      ['task1', { lane: 'lane1', layer: 1, row: -1 }]  // row -1 < row 0
+    ]);
+
+    const elementLanes = new Map([
+      ['xor1', 'lane1'],
+      ['task1', 'lane1']
+    ]);
+
+    const lanes = new Map([
+      ['lane1', { id: 'lane1' }]
+    ]);
+
+    const directions = {
+      laneOrientation: 'horizontal',
+      alongLane: 'right',
+      oppAlongLane: 'left',
+      crossLane: 'down',
+      oppCrossLane: 'up'
+    };
+
+    const flowInfo = createGatewayOutputFlowInfo('flow1', 'xor1', 'task1', positions, elementLanes, lanes, directions);
+
+    expect(flowInfo.source.exitSide).toBe('up');  // Target above → go up first
+    expect(flowInfo.target.entrySide).toBe('left');
+    expect(flowInfo.waypoints.length).toBe(1);
+    expect(flowInfo.waypoints[0].lane).toBe('lane1');
+    expect(flowInfo.waypoints[0].layer).toBe(0);  // exitSide=up: layer stays from source
+    expect(flowInfo.waypoints[0].row).toBe(-1);   // entrySide=left: row from target
   });
 });
 
