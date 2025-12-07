@@ -23,10 +23,6 @@ describe('Integration: End-to-End Layout', () => {
 
     console.log('\nLayout result:');
     console.log('  Success:', result.success);
-    
-    if (!result.success) {
-      console.log('  Errors:', result.errors);
-    }
 
     // Verify success
     expect(result.success).toBe(true);

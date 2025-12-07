@@ -115,13 +115,13 @@ describe('Phase 2: Complex Example 1 - Gateway with 3 Outputs', () => {
     flowInfos.set('flow1', createSameLaneFlowInfo('flow1', 'start1', 'xor1', positions, directions));
 
     // flow2: xor1 → taskA (gateway output)
-    flowInfos.set('flow2', createGatewayOutputFlowInfo('flow2', 'xor1', 'taskA', positions, directions));
+    flowInfos.set('flow2', createGatewayOutputFlowInfo('flow2', 'xor1', 'taskA', positions, elementLanes, lanes, directions));
 
     // flow3: xor1 → taskB (gateway output)
-    flowInfos.set('flow3', createGatewayOutputFlowInfo('flow3', 'xor1', 'taskB', positions, directions));
+    flowInfos.set('flow3', createGatewayOutputFlowInfo('flow3', 'xor1', 'taskB', positions, elementLanes, lanes, directions));
 
     // flow4: xor1 → taskC (gateway output)
-    flowInfos.set('flow4', createGatewayOutputFlowInfo('flow4', 'xor1', 'taskC', positions, directions));
+    flowInfos.set('flow4', createGatewayOutputFlowInfo('flow4', 'xor1', 'taskC', positions, elementLanes, lanes, directions));
 
     console.log('\nFlow Infos:');
     flowInfos.forEach((info, flowId) => {

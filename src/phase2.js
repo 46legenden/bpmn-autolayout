@@ -104,6 +104,14 @@ export function assignGatewayLanes(elements, flows, lanes) {
     }
   }
 
+  // Fallback: Assign first lane to any elements without a lane
+  const firstLane = Array.from(lanes.keys())[0];
+  for (const [elementId, element] of elements) {
+    if (!elementLanes.has(elementId)) {
+      elementLanes.set(elementId, firstLane);
+    }
+  }
+
   return elementLanes;
 }
 
@@ -162,11 +170,15 @@ export function assignSameLanePosition(sourceId, targetId, positions, elementLan
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
 
-  return {
+  const targetPos = {
     lane,
     layer: sourcePos.layer + 1,
     row: sourcePos.row
   };
+  
+  positions.set(targetId, targetPos);
+  
+  return targetPos;
 }
 
 /**
@@ -253,11 +265,15 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
 
-  return {
+  const targetPos = {
     lane,
     layer: sourcePos.layer,  // Same layer (free path)
     row: 0
   };
+  
+  positions.set(targetId, targetPos);
+  
+  return targetPos;
 }
 
 /**
@@ -319,11 +335,15 @@ export function assignCrossLaneBlockedPosition(sourceId, targetId, positions, el
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
 
-  return {
+  const targetPos = {
     lane,
     layer: sourcePos.layer + 1,  // Layer +1 (blocked path)
     row: 0
   };
+  
+  positions.set(targetId, targetPos);
+  
+  return targetPos;
 }
 
 /**
@@ -476,20 +496,24 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   // Same-lane outputs with symmetric rows
   for (let i = 0; i < sameLaneOutputs.length; i++) {
     const { targetId, targetLane } = sameLaneOutputs[i];
-    outputPositions.set(targetId, {
+    const targetPos = {
       lane: targetLane,
       layer: gatewayPos.layer + 1,
       row: sameLaneRows[i]
-    });
+    };
+    positions.set(targetId, targetPos);
+    outputPositions.set(targetId, targetPos);
   }
 
   // Cross-lane outputs always at row 0
   for (const { targetId, targetLane } of crossLaneOutputs) {
-    outputPositions.set(targetId, {
+    const targetPos = {
       lane: targetLane,
       layer: gatewayPos.layer + 1,
       row: 0  // Always row 0 for cross-lane
-    });
+    };
+    positions.set(targetId, targetPos);
+    outputPositions.set(targetId, targetPos);
   }
 
   return outputPositions;
@@ -614,5 +638,170 @@ export function createBackFlowInfo(flowId, sourceId, targetId, positions) {
       row: targetPos.row,
       entrySide: null  // Will be determined in Phase 3
     }
+  };
+}
+
+/**
+ * Main Phase 2 function - orchestrates all position assignment and flow information
+ * @param {Map} elements - Element map from Phase 1
+ * @param {Map} flows - Flow map from Phase 1
+ * @param {Map} lanes - Lane map from Phase 1
+ * @param {Object} directions - Direction mappings from applyConfig
+ * @param {Array} backEdges - Back-edge flow IDs from Phase 1
+ * @returns {Object} - {positions, flowInfos, elementLanes, matrix}
+ */
+export function phase2(elements, flows, lanes, directions, backEdges) {
+  // Step 1: Assign gateway lanes
+  const elementLanes = assignGatewayLanes(elements, flows, lanes);
+  
+  // Step 2: Initialize matrix
+  const matrix = initializeMatrix(lanes);
+  
+  // Step 3: Initialize positions and flow infos
+  const positions = new Map();
+  const flowInfos = new Map();
+  
+  // Convert backEdges array to Set for fast lookup
+  const backEdgeSet = new Set(backEdges);
+  
+  // Step 4: Process all flows
+  for (const [flowId, flow] of flows) {
+    const sourceId = flow.sourceRef;
+    const targetId = flow.targetRef;
+    
+    // Check if this is a back-flow
+    if (backEdgeSet.has(flowId)) {
+      // Back-flows are marked but not routed in Phase 2
+      const flowInfo = createBackFlowInfo(flowId, sourceId, targetId, positions);
+      flowInfos.set(flowId, flowInfo);
+      continue;
+    }
+    
+    // Check if source is a gateway with multiple outputs
+    const sourceElement = elements.get(sourceId);
+    const isGateway = sourceElement && (
+      sourceElement.type === 'exclusiveGateway' ||
+      sourceElement.type === 'parallelGateway' ||
+      sourceElement.type === 'inclusiveGateway'
+    );
+    
+    // Get all output flows from source
+    const outputFlows = [];
+    for (const [fId, f] of flows) {
+      if (f.sourceRef === sourceId) {
+        outputFlows.push(fId);
+      }
+    }
+    
+    const hasMultipleOutputs = outputFlows.length > 1;
+    
+    if (isGateway && hasMultipleOutputs) {
+      // Handle gateway outputs separately
+      // First, ensure gateway has a position
+      if (!positions.has(sourceId)) {
+        const gatewayLane = elementLanes.get(sourceId);
+        positions.set(sourceId, {
+          lane: gatewayLane,
+          layer: 0, // Will be adjusted based on inputs
+          row: 0
+        });
+      }
+      
+      // Sort gateway outputs
+      const sortedOutputs = sortGatewayOutputs(
+        outputFlows,
+        flows,
+        elementLanes,
+        lanes,
+        elementLanes.get(sourceId)
+      );
+      
+      // Assign positions to gateway output targets
+      assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows);
+      
+      // Create flow info for this gateway output
+      const flowInfo = createGatewayOutputFlowInfo(
+        flowId,
+        sourceId,
+        targetId,
+        positions,
+        elementLanes,
+        lanes,
+        directions
+      );
+      flowInfos.set(flowId, flowInfo);
+      
+    } else {
+      // Regular flow (not gateway output)
+      
+      // Ensure source has a position
+      if (!positions.has(sourceId)) {
+        const sourceLane = elementLanes.get(sourceId);
+        positions.set(sourceId, {
+          lane: sourceLane,
+          layer: 0,
+          row: 0
+        });
+      }
+      
+      // Check if cross-lane
+      if (isCrossLane(flow, elementLanes)) {
+        // Cross-lane flow
+        const pathFree = isCrossLanePathFree(
+          sourceId,
+          targetId,
+          positions,
+          elementLanes,
+          lanes,
+          matrix
+        );
+        
+        if (pathFree) {
+          // Free path - direct vertical connection
+          assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes);
+          const flowInfo = createCrossLaneFreeFlowInfo(
+            flowId,
+            sourceId,
+            targetId,
+            positions,
+            elementLanes,
+            lanes,
+            directions
+          );
+          flowInfos.set(flowId, flowInfo);
+        } else {
+          // Blocked path - L-shaped with waypoint
+          assignCrossLaneBlockedPosition(sourceId, targetId, positions, elementLanes);
+          const flowInfo = createCrossLaneBlockedFlowInfo(
+            flowId,
+            sourceId,
+            targetId,
+            positions,
+            elementLanes,
+            lanes,
+            directions
+          );
+          flowInfos.set(flowId, flowInfo);
+        }
+      } else {
+        // Same-lane flow
+        assignSameLanePosition(sourceId, targetId, positions, elementLanes);
+        const flowInfo = createSameLaneFlowInfo(
+          flowId,
+          sourceId,
+          targetId,
+          positions,
+          directions
+        );
+        flowInfos.set(flowId, flowInfo);
+      }
+    }
+  }
+  
+  return {
+    positions,
+    flowInfos,
+    elementLanes,
+    matrix
   };
 }

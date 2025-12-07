@@ -8,7 +8,7 @@
  */
 
 import { parseXML, validateBPMN, preProcess, detectBackEdges } from './phase1.js';
-import { applyConfig } from './phase2.js';
+import { applyConfig, phase2 } from './phase2.js';
 import { phase3, injectBPMNDI } from './phase3.js';
 
 /**
@@ -56,77 +56,8 @@ export function layoutBPMN(bpmnXml, config = {}) {
     // Apply configuration (determine abstract directions)
     const directions = applyConfig(config);
     
-    // TODO: Implement Phase 2 position assignment
-    // For now, this is a placeholder that needs to be implemented
-    // We need to:
-    // 1. Assign gateway lanes
-    // 2. Initialize positions
-    // 3. Process flows and assign positions
-    // 4. Calculate flow information with waypoints
-    
-    // Placeholder: Simple position assignment for testing
-    const positions = new Map();
-    const flowInfos = new Map();
-    
-    // Simple layer-based positioning
-    let layer = 0;
-    for (const [elementId, element] of elements) {
-      // Get lane for element
-      let elementLane = null;
-      for (const [laneId, lane] of lanes) {
-        if (lane.elements && lane.elements.includes(elementId)) {
-          elementLane = laneId;
-          break;
-        }
-      }
-      
-      if (!elementLane) {
-        // Use first lane as default
-        elementLane = Array.from(lanes.keys())[0];
-      }
-      
-      positions.set(elementId, {
-        lane: elementLane,
-        layer: layer++,
-        row: 0
-      });
-    }
-    
-    // Simple flow info (no waypoints for now)
-    for (const [flowId, flow] of flows) {
-      const sourcePos = positions.get(flow.sourceRef);
-      const targetPos = positions.get(flow.targetRef);
-      
-      if (!sourcePos || !targetPos) continue;
-      
-      // Check if back-flow
-      const isBackFlow = sourcePos.layer > targetPos.layer;
-      
-      flowInfos.set(flowId, {
-        flowId,
-        sourceId: flow.sourceRef,
-        targetId: flow.targetRef,
-        isBackFlow,
-        source: {
-          lane: sourcePos.lane,
-          layer: sourcePos.layer,
-          row: sourcePos.row,
-          exitSide: directions.alongLane // Simple: always right
-        },
-        target: {
-          lane: targetPos.lane,
-          layer: targetPos.layer,
-          row: targetPos.row,
-          entrySide: directions.oppAlongLane // Simple: always left
-        },
-        waypoints: []
-      });
-    }
-    
-    const phase2Result = {
-      positions,
-      flowInfos
-    };
+    // Run Phase 2: Position assignment and flow information
+    const phase2Result = phase2(elements, flows, lanes, directions, backEdges);
     
     // ===== PHASE 3: Pixel Coordinates + BPMN DI =====
     
@@ -152,5 +83,5 @@ export function layoutBPMN(bpmnXml, config = {}) {
  * Export all phases for direct access
  */
 export { parseXML, validateBPMN, preProcess, detectBackEdges } from './phase1.js';
-export { applyConfig } from './phase2.js';
+export { applyConfig, phase2 } from './phase2.js';
 export { phase3, calculateElementCoordinates, routeBackFlow, generateElementDI, generateFlowDI, injectBPMNDI } from './phase3.js';
