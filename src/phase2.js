@@ -720,35 +720,70 @@ export function createBackFlowInfo(flowId, sourceId, targetId, positions, elemen
 function topologicalSortFlows(flows, elements, backEdgeSet = new Set()) {
   // Build dependency graph: element -> number of unprocessed inputs
   const inDegree = new Map();
-  const processed = new Set();
+  const outgoingFlows = new Map(); // element -> list of outgoing flow IDs
   
   for (const [elementId, element] of elements) {
     // Count only non-back-flow inputs
     const nonBackFlowInputs = element.incoming.filter(flowId => !backEdgeSet.has(flowId));
     inDegree.set(elementId, nonBackFlowInputs.length);
+    outgoingFlows.set(elementId, []);
   }
   
-  // Sort flows: prioritize flows to elements with fewer unprocessed inputs
-  const flowArray = Array.from(flows.entries());
-  
-  flowArray.sort(([flowIdA, flowA], [flowIdB, flowB]) => {
-    const targetA = flowA.targetRef;
-    const targetB = flowB.targetRef;
-    
-    // Count how many inputs are still unprocessed
-    const unprocessedA = inDegree.get(targetA) || 0;
-    const unprocessedB = inDegree.get(targetB) || 0;
-    
-    // Prioritize flows to elements with fewer unprocessed inputs
-    if (unprocessedA !== unprocessedB) {
-      return unprocessedA - unprocessedB;
+  // Build outgoing flows map
+  for (const [flowId, flow] of flows) {
+    if (backEdgeSet.has(flowId)) continue; // Skip back-flows
+    const sourceId = flow.sourceRef;
+    if (outgoingFlows.has(sourceId)) {
+      outgoingFlows.get(sourceId).push(flowId);
     }
-    
-    // If same, maintain original order
-    return 0;
-  });
+  }
   
-  return flowArray;
+  // Queue-based topological sort
+  const queue = [];
+  const result = [];
+  const processed = new Set();
+  
+  // Start with elements that have no unprocessed inputs
+  for (const [elementId, degree] of inDegree) {
+    if (degree === 0) {
+      queue.push(elementId);
+    }
+  }
+  
+  while (queue.length > 0) {
+    const elementId = queue.shift();
+    if (processed.has(elementId)) continue;
+    processed.add(elementId);
+    
+    // Add all outgoing flows from this element
+    const outFlows = outgoingFlows.get(elementId) || [];
+    for (const flowId of outFlows) {
+      const flow = flows.get(flowId);
+      if (!flow) continue;
+      
+      result.push([flowId, flow]);
+      
+      // Decrease inDegree of target element
+      const targetId = flow.targetRef;
+      const currentDegree = inDegree.get(targetId) || 0;
+      const newDegree = currentDegree - 1;
+      inDegree.set(targetId, newDegree);
+      
+      // If target has no more unprocessed inputs, add to queue
+      if (newDegree === 0 && !processed.has(targetId)) {
+        queue.push(targetId);
+      }
+    }
+  }
+  
+  // Add back-flows at the end
+  for (const [flowId, flow] of flows) {
+    if (backEdgeSet.has(flowId)) {
+      result.push([flowId, flow]);
+    }
+  }
+  
+  return result;
 }
 
 /**
@@ -783,14 +818,93 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
   }
   
   // Adjust layer for elements with multiple cross-lane inputs
+  // Only adjust if inputs come from the SAME layer (to avoid collisions)
+  const adjusted = new Set();
   for (const [elementId, inputFlows] of crossLaneInputs) {
     if (inputFlows.length > 1) {
       const pos = positions.get(elementId);
-      if (pos) {
+      if (!pos) continue;
+      
+      // Check if all inputs come from the same layer
+      const inputLayers = new Set();
+      for (const flowId of inputFlows) {
+        const flow = flows.get(flowId);
+        if (!flow) continue;
+        const sourcePos = positions.get(flow.sourceRef);
+        if (sourcePos) {
+          inputLayers.add(sourcePos.layer);
+        }
+      }
+      
+      // Only adjust if inputs are from the same layer
+      if (inputLayers.size === 1) {
         // Move element one layer to the right to make space for converging flows
         pos.layer += 1;
+        adjusted.add(elementId);
       }
     }
+  }
+  
+  // Propagate layer changes to dependent elements
+  // If an element's layer was increased, all elements that depend on it
+  // (i.e., have it as input) must also be shifted
+  if (adjusted.size > 0) {
+    propagateLayerChanges(positions, flows, adjusted, backEdgeSet);
+  }
+}
+
+/**
+ * Propagate layer changes to dependent elements
+ * @param {Map} positions - Element positions
+ * @param {Map} flows - Flow map
+ * @param {Set} adjustedElements - Set of element IDs that had their layer increased
+ * @param {Set} backEdgeSet - Set of back edge flow IDs
+ */
+function propagateLayerChanges(positions, flows, adjustedElements, backEdgeSet) {
+  // Build dependency graph: element -> elements that depend on it
+  const dependents = new Map();
+  
+  for (const [flowId, flow] of flows) {
+    if (backEdgeSet.has(flowId)) continue;
+    
+    const sourceId = flow.sourceRef;
+    const targetId = flow.targetRef;
+    
+    if (!dependents.has(sourceId)) {
+      dependents.set(sourceId, []);
+    }
+    dependents.get(sourceId).push(targetId);
+  }
+  
+  // Recursively update dependent elements
+  const visited = new Set();
+  
+  function updateDependents(elementId) {
+    if (visited.has(elementId)) return;
+    visited.add(elementId);
+    
+    const deps = dependents.get(elementId) || [];
+    const sourcePos = positions.get(elementId);
+    
+    if (!sourcePos) return;
+    
+    for (const depId of deps) {
+      const depPos = positions.get(depId);
+      if (!depPos) continue;
+      
+      // Ensure dependent is at least one layer after source
+      const minLayer = sourcePos.layer + 1;
+      if (depPos.layer < minLayer) {
+        depPos.layer = minLayer;
+        // Recursively update this element's dependents
+        updateDependents(depId);
+      }
+    }
+  }
+  
+  // Start propagation from adjusted elements
+  for (const elementId of adjustedElements) {
+    updateDependents(elementId);
   }
 }
 
@@ -898,6 +1012,9 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
   
   // Step 4: Process all flows in topological order
   const sortedFlows = topologicalSortFlows(flows, elements, backEdgeSet);
+  
+  const DEBUG = process.env.DEBUG_PHASE2 === 'true';
+  if (DEBUG) console.log('\n=== FLOW PROCESSING ORDER ===');
   
   for (const [flowId, flow] of sortedFlows) {
     const sourceId = flow.sourceRef;
@@ -1026,7 +1143,10 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
         }
       } else {
         // Same-lane flow
+        const before = positions.get(targetId)?.layer;
         assignSameLanePosition(sourceId, targetId, positions, elementLanes);
+        const after = positions.get(targetId)?.layer;
+        if (DEBUG) console.log(`  ${flowId}: ${sourceId} -> ${targetId} (same-lane, layer ${before || 'new'} -> ${after})`);
         const flowInfo = createSameLaneFlowInfo(
           flowId,
           sourceId,

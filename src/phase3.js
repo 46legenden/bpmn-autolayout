@@ -21,6 +21,12 @@ const ELEMENT_HEIGHT = 80;
 const GATEWAY_SIZE = 50;
 const START_END_SIZE = 36;     // Events are circular
 
+// Back-flow corridor offset from lane boundary
+// Calculated dynamically based on lane height and element height
+// Task is centered: taskTopOffset = (LANE_BASE_HEIGHT - ELEMENT_HEIGHT) / 2
+// Corridor is midway between lane boundary and task: CORRIDOR_OFFSET = taskTopOffset / 2
+const CORRIDOR_OFFSET = ((LANE_BASE_HEIGHT - ELEMENT_HEIGHT) / 2) / 2;
+
 // Vertical orientation constants (when needed)
 const LANE_BASE_WIDTH = 150;
 const LANE_ROW_WIDTH = 120;
@@ -269,6 +275,48 @@ function determineTargetEntrySide(targetId, flowInfos, directions) {
  * @param {Map} coordinates - Element coordinates
  * @returns {number} - Lane bottom Y coordinate
  */
+function calculateLaneTop(lane, positions, coordinates, sourcePos) {
+  // Calculate lane top based on lane index
+  // Lanes are stacked vertically: lane0, lane1, lane2, ...
+  
+  // Find all lanes and their indices
+  const laneIds = [];
+  for (const [elId, pos] of positions) {
+    if (!laneIds.includes(pos.lane)) {
+      laneIds.push(pos.lane);
+    }
+  }
+  
+  // Find index of source lane
+  const laneIndex = laneIds.indexOf(sourcePos.lane);
+  
+  if (laneIndex === 0) {
+    // First lane starts at LANE_TOP_OFFSET
+    return LANE_TOP_OFFSET;
+  } else {
+    // Calculate cumulative height of previous lanes
+    let cumulativeHeight = LANE_TOP_OFFSET;
+    
+    for (let i = 0; i < laneIndex; i++) {
+      const prevLaneId = laneIds[i];
+      
+      // Find max rows in previous lane
+      let maxRow = 0;
+      for (const [elId, pos] of positions) {
+        if (pos.lane === prevLaneId && pos.normalizedRow > maxRow) {
+          maxRow = pos.normalizedRow;
+        }
+      }
+      
+      // Add height of previous lane
+      const prevLaneHeight = LANE_BASE_HEIGHT + maxRow * LANE_ROW_HEIGHT;
+      cumulativeHeight += prevLaneHeight;
+    }
+    
+    return cumulativeHeight;
+  }
+}
+
 function calculateLaneBottom(lane, positions, coordinates) {
   // Find max rows in this lane
   let maxRow = 0;
@@ -310,41 +358,114 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   
   const waypoints = [];
   
-  // Step 1: Exit DOWN from source
-  const exitSide = directions.crossLane; // "down" for horizontal
-  const exitPoint = calculateConnectionPoint(sourceCoord, exitSide);
-  waypoints.push(exitPoint);
-  
-  // Step 2: Move to "between-rows" zone
-  // Calculate Y as midpoint between current row bottom and next row top (or lane bottom)
-  let betweenRowsY;
-  
-  // Find lane bounds to determine lane bottom
-  const sourceLane = lanes.get(sourcePos.lane);
-  const laneBottom = calculateLaneBottom(sourceLane, positions, coordinates);
-  
-  // Find if there's a next row in this lane
-  const currentRow = sourcePos.normalizedRow;
-  let nextRowTop = null;
-  
-  // Find elements in next row
-  for (const [elId, pos] of positions) {
-    if (pos.lane === sourcePos.lane && pos.normalizedRow === currentRow + 1) {
-      const elCoord = coordinates.get(elId);
-      if (elCoord) {
-        if (nextRowTop === null || elCoord.y < nextRowTop) {
-          nextRowTop = elCoord.y;
-        }
+  // Step 1: Determine best exit side based on free sides and target direction
+  // Find which sides are already used by other flows from this source
+  const usedSides = new Set();
+  for (const [fId, fInfo] of flowInfos) {
+    if (fInfo.sourceId === flowInfo.sourceId && fId !== flowInfo.flowId && !fInfo.isBackFlow) {
+      if (fInfo.source && fInfo.source.exitSide) {
+        usedSides.add(fInfo.source.exitSide);
       }
     }
   }
   
-  if (nextRowTop !== null) {
-    // Multiple rows: midpoint between current row bottom and next row top
-    betweenRowsY = (exitPoint.y + nextRowTop) / 2;
+  // Determine target direction
+  // For cross-lane flows, compare lane indices (vertical position)
+  // For same-lane flows, compare rows
+  const sourceLaneObj = lanes.get(sourcePos.lane);
+  const targetLaneObj = lanes.get(targetPos.lane);
+  
+  let targetIsAbove, targetIsBelow;
+  
+  if (sourcePos.lane !== targetPos.lane) {
+    // Cross-lane: compare lane indices (assuming lanes are ordered top-to-bottom)
+    // Find lane indices by iterating lanes in order
+    const laneOrder = Array.from(lanes.keys());
+    const sourceIndex = laneOrder.indexOf(sourcePos.lane);
+    const targetIndex = laneOrder.indexOf(targetPos.lane);
+    
+    targetIsAbove = targetIndex < sourceIndex;
+    targetIsBelow = targetIndex > sourceIndex;
   } else {
-    // Single row: midpoint between current row bottom and lane bottom
-    betweenRowsY = (exitPoint.y + laneBottom) / 2;
+    // Same lane: compare rows
+    targetIsAbove = targetPos.row < sourcePos.row;
+    targetIsBelow = targetPos.row > sourcePos.row;
+  }
+  
+  const targetIsLeft = targetPos.layer < sourcePos.layer;
+  
+  // Choose best exit side (prefer direction towards target, avoid used sides)
+  let exitSide;
+  
+  if (targetIsAbove && !usedSides.has(directions.oppCrossLane)) {
+    // Target is above, try UP
+    exitSide = directions.oppCrossLane; // up
+  } else if (targetIsBelow && !usedSides.has(directions.crossLane)) {
+    // Target is below, try DOWN
+    exitSide = directions.crossLane; // down
+  } else if (targetIsLeft && !usedSides.has(directions.alongLane)) {
+    // Target is left, try RIGHT (to go around)
+    exitSide = directions.alongLane; // right
+  } else {
+    // Fallback: use any free side, prefer up/down over right
+    if (!usedSides.has(directions.oppCrossLane)) {
+      exitSide = directions.oppCrossLane; // up
+    } else if (!usedSides.has(directions.crossLane)) {
+      exitSide = directions.crossLane; // down
+    } else if (!usedSides.has(directions.alongLane)) {
+      exitSide = directions.alongLane; // right
+    } else {
+      // All sides used, default to down
+      exitSide = directions.crossLane;
+    }
+  }
+  
+  // Update flowInfo with calculated exitSide
+  if (flowInfo.source) {
+    flowInfo.source.exitSide = exitSide;
+  }
+  
+  const exitPoint = calculateConnectionPoint(sourceCoord, exitSide);
+  waypoints.push(exitPoint);
+  
+  // Step 2: Move to "between-rows/lanes" zone for horizontal corridor
+  // Calculate Y as midpoint between exit point and lane boundary
+  let betweenRowsY;
+  
+  // Find lane bounds
+  const sourceLane = lanes.get(sourcePos.lane);
+  
+  if (exitSide === directions.oppCrossLane) {
+    // Exit UP: corridor at constant offset below lane top
+    const laneTop = calculateLaneTop(sourceLane, positions, coordinates, sourcePos);
+    betweenRowsY = laneTop + CORRIDOR_OFFSET;
+  } else {
+    // Exit DOWN or RIGHT: corridor between exit point and lane bottom (or next row)
+    const laneBottom = calculateLaneBottom(sourceLane, positions, coordinates);
+    
+    // Find if there's a next row in this lane
+    const currentRow = sourcePos.normalizedRow;
+    let nextRowTop = null;
+    
+    // Find elements in next row
+    for (const [elId, pos] of positions) {
+      if (pos.lane === sourcePos.lane && pos.normalizedRow === currentRow + 1) {
+        const elCoord = coordinates.get(elId);
+        if (elCoord) {
+          if (nextRowTop === null || elCoord.y < nextRowTop) {
+            nextRowTop = elCoord.y;
+          }
+        }
+      }
+    }
+    
+    if (nextRowTop !== null) {
+      // Multiple rows: midpoint between exit point and next row top
+      betweenRowsY = (exitPoint.y + nextRowTop) / 2;
+    } else {
+      // Single row: midpoint between exit point and lane bottom
+      betweenRowsY = (exitPoint.y + laneBottom) / 2;
+    }
   }
   
   const betweenRowsPoint = {

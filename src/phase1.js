@@ -20,6 +20,23 @@ export function parseXML(bpmnXml) {
   const lanes = new Map();
 
   try {
+    // Basic XML syntax validation
+    // Check for malformed comments (e.g., "<- comment" instead of "<!-- comment")
+    // Look for "<-" followed by space or letter (not "--" which would be valid)
+    const hasMalformedComment = /<-\s/.test(bpmnXml) || /<-[A-Za-z]/.test(bpmnXml);
+    if (hasMalformedComment) {
+      errors.push('Invalid XML: Malformed comment syntax detected (use <!-- --> for comments)');
+      return { elements, flows, lanes, success: false, errors };
+    }
+    
+    // Check for basic BPMN structure (only if it looks like a complete document)
+    // Allow XML fragments for testing
+    const looksLikeCompleteDoc = bpmnXml.includes('<?xml') || bpmnXml.trim().startsWith('<bpmn:definitions');
+    if (looksLikeCompleteDoc && !bpmnXml.includes('<bpmn:definitions') && !bpmnXml.includes('<definitions')) {
+      errors.push('Invalid BPMN: Missing <bpmn:definitions> or <definitions> root element');
+      return { elements, flows, lanes, success: false, errors };
+    }
+    
     // Valid BPMN element types (case-sensitive!)
     const validTypes = [
       'startEvent', 'endEvent', 'task', 'userTask', 'serviceTask',
