@@ -766,7 +766,9 @@ function calculateElementLabelPosition(elementId, coordinates, flowWaypoints, fl
   
   // Special handling for gateways: always top-left
   if (element && element.type && element.type.includes('Gateway')) {
-    const labelWidth = 80;  // Approximate width for gateway labels
+    // Calculate label width based on text length (approximate: 8px per character)
+    const text = element.name || '';
+    const labelWidth = Math.max(80, text.length * 8 + 10);  // Min 80px, +10px padding
     const labelHeight = 20;
     const horizontalGap = 2;  // Small gap from gateway center (closer)
     const verticalGap = 10;   // Larger gap from gateway center (further up)
@@ -775,11 +777,11 @@ function calculateElementLabelPosition(elementId, coordinates, flowWaypoints, fl
     const gatewayCenterX = pos.x + pos.width / 2;
     const gatewayCenterY = pos.y + pos.height / 2;
     
-    // Position: right edge of label box close to gateway center horizontally
+    // Position label so its BOTTOM-RIGHT corner is near the gateway
+    // This ensures the label doesn't overlap with the gateway shape
     const labelRightEdge = gatewayCenterX - horizontalGap;
     const labelX = labelRightEdge - labelWidth;
     
-    // Position: bottom edge of label box further from gateway center vertically
     const labelBottomEdge = gatewayCenterY - verticalGap;
     const labelY = labelBottomEdge - labelHeight;
     

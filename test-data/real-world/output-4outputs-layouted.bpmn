@@ -67,7 +67,6 @@
     <bpmn:sequenceFlow id="f9" sourceRef="task4" targetRef="end1" />
     <bpmn:sequenceFlow id="f10" sourceRef="task5" targetRef="end1" />
   </bpmn:process>
-  
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
       <bpmndi:BPMNShape id="pool_di" bpmnElement="pool" isHorizontal="true">
@@ -127,7 +126,7 @@
     <bpmndi:BPMNShape bpmnElement="gw1">
       <dc:Bounds x="425" y="511" width="50" height="50"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="368" y="506" width="80" height="20" />
+        <dc:Bounds x="366" y="506" width="82" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNEdge bpmnElement="f1">

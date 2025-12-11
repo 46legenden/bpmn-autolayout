@@ -17,7 +17,6 @@
         <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
-    
     <!-- Sales Lane -->
     <bpmn:startEvent id="start1" name="Start">
       <bpmn:outgoing>f1</bpmn:outgoing>
@@ -32,7 +31,6 @@
       <bpmn:outgoing>f_high</bpmn:outgoing>
       <bpmn:outgoing>f_low</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    
     <!-- Manager Lane -->
     <bpmn:task id="task_review" name="Review Order">
       <bpmn:incoming>f_high</bpmn:incoming>
@@ -43,7 +41,6 @@
       <bpmn:outgoing>f_yes</bpmn:outgoing>
       <bpmn:outgoing>f_reject</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    
     <!-- Warehouse Lane -->
     <bpmn:task id="task_process" name="Process Order">
       <bpmn:incoming>f_low</bpmn:incoming>
@@ -57,7 +54,6 @@
     <bpmn:endEvent id="end1" name="End">
       <bpmn:incoming>f5</bpmn:incoming>
     </bpmn:endEvent>
-    
     <!-- Sequence Flows -->
     <bpmn:sequenceFlow id="f1" sourceRef="start1" targetRef="task_create"/>
     <bpmn:sequenceFlow id="f2" sourceRef="task_create" targetRef="gw_amount"/>
@@ -131,7 +127,7 @@
     <bpmndi:BPMNShape bpmnElement="gw_approved">
       <dc:Bounds x="1025" y="325" width="50" height="50"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="968" y="320" width="80" height="20" />
+        <dc:Bounds x="966" y="320" width="82" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNEdge bpmnElement="f1">
