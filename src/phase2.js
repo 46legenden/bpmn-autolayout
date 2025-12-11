@@ -538,17 +538,85 @@ export function assignSymmetricRows(outputCount) {
 }
 
 /**
+ * Determine which sides of a gateway are occupied by incoming flows
+ * @param {string} gatewayId - Gateway ID
+ * @param {Map} elements - Element map
+ * @param {Map} flows - Flow map
+ * @param {Map} positions - Positions map
+ * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} lanes - Lane map
+ * @param {Object} directions - Direction mappings
+ * @param {Set} backEdgeSet - Set of back-flow IDs
+ * @returns {Set} - Set of occupied sides ('top', 'bottom', 'left', 'right')
+ */
+export function determineGatewayOccupiedSides(gatewayId, elements, flows, positions, elementLanes, lanes, directions, backEdgeSet) {
+  const occupiedSides = new Set();
+  const gatewayElement = elements.get(gatewayId);
+  
+  if (!gatewayElement || !gatewayElement.incoming) {
+    return occupiedSides;
+  }
+
+  const gatewayPos = positions.get(gatewayId);
+  if (!gatewayPos) {
+    return occupiedSides;
+  }
+
+  const gatewayLane = elementLanes.get(gatewayId);
+  const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
+
+  // Check each incoming flow
+  for (const flowId of gatewayElement.incoming) {
+    // Skip back-flows as they don't occupy normal sides
+    if (backEdgeSet.has(flowId)) {
+      continue;
+    }
+
+    const flow = flows.get(flowId);
+    if (!flow) continue;
+
+    const sourceId = flow.sourceRef;
+    const sourcePos = positions.get(sourceId);
+    if (!sourcePos) continue;
+
+    const sourceLane = elementLanes.get(sourceId);
+    const sourceLaneIndex = getLaneIndex(sourceLane, lanes);
+
+    // Determine which side the input comes from
+    if (sourceLane === gatewayLane) {
+      // Same lane - input comes from oppAlongLane direction (for horizontal: 'left')
+      occupiedSides.add(directions.oppAlongLane);
+    } else {
+      // Cross-lane - input comes from crossLane or oppCrossLane direction
+      if (sourceLaneIndex < gatewayLaneIndex) {
+        // Source is above gateway - input from oppCrossLane (for horizontal: 'up')
+        occupiedSides.add(directions.oppCrossLane);
+      } else {
+        // Source is below gateway - input from crossLane (for horizontal: 'down')
+        occupiedSides.add(directions.crossLane);
+      }
+    }
+  }
+
+  return occupiedSides;
+}
+
+/**
  * Assign positions for gateway outputs
  * @param {string} gatewayId - Gateway ID
  * @param {Array} sortedOutputFlowIds - Sorted output flow IDs
  * @param {Map} positions - Positions map
  * @param {Map} elementLanes - elementId → laneId
  * @param {Map} flows - Flow map
+ * @param {Map} lanes - Lane map (needed for lane index calculation)
+ * @param {Set} occupiedSides - Set of occupied sides (direction values from directions object)
+ * @param {Object} directions - Direction mappings
  * @returns {Map} - targetId → { lane, layer, row }
  */
-export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows) {
+export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows, lanes, occupiedSides = new Set(), directions = {}) {
   const gatewayPos = positions.get(gatewayId);
   const gatewayLane = elementLanes.get(gatewayId);
+  const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
 
   // Separate same-lane and cross-lane outputs
   const sameLaneOutputs = [];
@@ -558,20 +626,39 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
     const flow = flows.get(flowId);
     const targetId = flow.targetRef;
     const targetLane = elementLanes.get(targetId);
+    const targetLaneIndex = getLaneIndex(targetLane, lanes);
 
     if (targetLane === gatewayLane) {
       sameLaneOutputs.push({ flowId, targetId, targetLane });
     } else {
-      crossLaneOutputs.push({ flowId, targetId, targetLane });
+      crossLaneOutputs.push({ flowId, targetId, targetLane, laneDirection: targetLaneIndex > gatewayLaneIndex ? 'down' : 'up' });
     }
   }
+
+  // Check if cross-lane outputs are symmetrically distributed (some up, some down)
+  const hasUpOutputs = crossLaneOutputs.some(o => o.laneDirection === 'up');
+  const hasDownOutputs = crossLaneOutputs.some(o => o.laneDirection === 'down');
+  const isSymmetricDistribution = hasUpOutputs && hasDownOutputs;
+
+  // Check if cross-lane sides are free for symmetric distribution
+  // For symmetric distribution (up AND down), both crossLane directions must be free
+  // For horizontal lanes: crossLane='down', oppCrossLane='up'
+  const crossLaneFree = !occupiedSides.has(directions.crossLane);           // for horizontal: 'down' is free
+  const oppCrossLaneFree = !occupiedSides.has(directions.oppCrossLane);     // for horizontal: 'up' is free
+  const canUseSymmetricOptimization = crossLaneFree && oppCrossLaneFree;
+
+  // Determine layer offset for outputs
+  // If cross-lane outputs are symmetrically distributed (up AND down), use same layer
+  // BUT only if top and bottom sides are free
+  // Otherwise use normal rule (layer + 1)
+  const layerOffset = (crossLaneOutputs.length > 0 && isSymmetricDistribution && canUseSymmetricOptimization) ? 0 : 1;
 
   // Assign symmetric rows only for same-lane outputs
   const sameLaneRows = assignSymmetricRows(sameLaneOutputs.length);
 
   const outputPositions = new Map();
 
-  // Same-lane outputs with symmetric rows
+  // Same-lane outputs with symmetric rows (always use layer + 1)
   for (let i = 0; i < sameLaneOutputs.length; i++) {
     const { targetId, targetLane } = sameLaneOutputs[i];
     const targetPos = {
@@ -583,11 +670,11 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
     outputPositions.set(targetId, targetPos);
   }
 
-  // Cross-lane outputs always at row 0
+  // Cross-lane outputs - use optimized layer if symmetric
   for (const { targetId, targetLane } of crossLaneOutputs) {
     const targetPos = {
       lane: targetLane,
-      layer: gatewayPos.layer + 1,
+      layer: gatewayPos.layer + layerOffset,
       row: 0  // Always row 0 for cross-lane
     };
     positions.set(targetId, targetPos);
@@ -1068,8 +1155,11 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
         elementLanes.get(sourceId)
       );
       
+      // Determine which sides are occupied by inputs
+      const occupiedSides = determineGatewayOccupiedSides(sourceId, elements, flows, positions, elementLanes, lanes, directions, backEdgeSet);
+      
       // Assign positions to gateway output targets
-      assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows);
+      assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows, lanes, occupiedSides, directions);
       
       // Create flow info for this gateway output
       const flowInfo = createGatewayOutputFlowInfo(

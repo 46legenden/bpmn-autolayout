@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_sales" name="Sales">
+        <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_amount</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_manager" name="Manager">
+        <bpmn:flowNodeRef>task_review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_approved</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>task_process</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_ship</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Sales Lane -->
+    <bpmn:startEvent id="start1" name="Start">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="task_create" name="Create Order">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:incoming>f_reject</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="gw_amount" name="Amount?">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f_high</bpmn:outgoing>
+      <bpmn:outgoing>f_low</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Manager Lane -->
+    <bpmn:task id="task_review" name="Review Order">
+      <bpmn:incoming>f_high</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="gw_approved" name="Approved?">
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:outgoing>f_yes</bpmn:outgoing>
+      <bpmn:outgoing>f_reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Warehouse Lane -->
+    <bpmn:task id="task_process" name="Process Order">
+      <bpmn:incoming>f_low</bpmn:incoming>
+      <bpmn:incoming>f_yes</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_ship" name="Ship Order">
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="end1" name="End">
+      <bpmn:incoming>f5</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="f1" sourceRef="start1" targetRef="task_create"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="task_create" targetRef="gw_amount"/>
+    <bpmn:sequenceFlow id="f_high" name="High" sourceRef="gw_amount" targetRef="task_review"/>
+    <bpmn:sequenceFlow id="f_low" name="Low" sourceRef="gw_amount" targetRef="task_process"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="task_review" targetRef="gw_approved"/>
+    <bpmn:sequenceFlow id="f_yes" name="Yes" sourceRef="gw_approved" targetRef="task_process"/>
+    <bpmn:sequenceFlow id="f_reject" name="No" sourceRef="gw_approved" targetRef="task_create"/>
+    <bpmn:sequenceFlow id="f4" sourceRef="task_process" targetRef="task_ship"/>
+    <bpmn:sequenceFlow id="f5" sourceRef="task_ship" targetRef="end1"/>
+  </bpmn:process>
+  <bpmn:collaboration>
+    <bpmn:participant id="pool" name="Order Processing" processRef="Process_1"/>
+  </bpmn:collaboration>
+</bpmn:definitions>
