@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   id="Definitions_1"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Lanes -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="lane_director" name="Director">
+        <bpmn:flowNodeRef>task_escalate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_request_info</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_director</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_manager" name="Manager">
+        <bpmn:flowNodeRef>start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_revision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_manager</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_archive" name="Archive">
+        <bpmn:flowNodeRef>task_archive</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_archive</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <!-- Start Event -->
+    <bpmn:startEvent id="start" name="Start">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <!-- Review Task -->
+    <bpmn:task id="task_review" name="Review Request">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Decision Gateway with 5 outputs -->
+    <bpmn:exclusiveGateway id="gw_decision" name="Approval Decision?">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f_approved</bpmn:outgoing>
+      <bpmn:outgoing>f_revision</bpmn:outgoing>
+      <bpmn:outgoing>f_escalate</bpmn:outgoing>
+      <bpmn:outgoing>f_request_info</bpmn:outgoing>
+      <bpmn:outgoing>f_archive</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <!-- Same-lane outputs (Manager lane) -->
+    <bpmn:task id="task_approved" name="Process Approval">
+      <bpmn:incoming>f_approved</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_revision" name="Request Revision">
+      <bpmn:incoming>f_revision</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Cross-lane outputs to Director (up) -->
+    <bpmn:task id="task_escalate" name="Escalate to Director">
+      <bpmn:incoming>f_escalate</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_request_info" name="Request More Info">
+      <bpmn:incoming>f_request_info</bpmn:incoming>
+      <bpmn:outgoing>f7</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Cross-lane output to Archive (down) -->
+    <bpmn:task id="task_archive" name="Archive Request">
+      <bpmn:incoming>f_archive</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:task>
+    <!-- End Events -->
+    <bpmn:endEvent id="end_manager" name="End">
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:incoming>f4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="end_archive" name="End">
+      <bpmn:incoming>f5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="end_director" name="End">
+      <bpmn:incoming>f6</bpmn:incoming>
+      <bpmn:incoming>f7</bpmn:incoming>
+    </bpmn:endEvent>
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="task_review"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="task_review" targetRef="gw_decision"/>
+    <bpmn:sequenceFlow id="f_approved" name="Approved" sourceRef="gw_decision" targetRef="task_approved"/>
+    <bpmn:sequenceFlow id="f_revision" name="Needs Revision" sourceRef="gw_decision" targetRef="task_revision"/>
+    <bpmn:sequenceFlow id="f_escalate" name="Escalate" sourceRef="gw_decision" targetRef="task_escalate"/>
+    <bpmn:sequenceFlow id="f_request_info" name="More Info" sourceRef="gw_decision" targetRef="task_request_info"/>
+    <bpmn:sequenceFlow id="f_archive" name="Archive" sourceRef="gw_decision" targetRef="task_archive"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="task_approved" targetRef="end_manager"/>
+    <bpmn:sequenceFlow id="f4" sourceRef="task_revision" targetRef="end_manager"/>
+    <bpmn:sequenceFlow id="f5" sourceRef="task_archive" targetRef="end_archive"/>
+    <bpmn:sequenceFlow id="f6" sourceRef="task_escalate" targetRef="end_director"/>
+    <bpmn:sequenceFlow id="f7" sourceRef="task_request_info" targetRef="end_director"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
+        <dc:Bounds x="180" y="80" width="988" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_director_di" bpmnElement="lane_director" isHorizontal="true">
+        <dc:Bounds x="180" y="260" width="988" height="320" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_manager_di" bpmnElement="lane_manager" isHorizontal="true">
+        <dc:Bounds x="180" y="580" width="988" height="320" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_archive_di" bpmnElement="lane_archive" isHorizontal="true">
+        <dc:Bounds x="180" y="900" width="988" height="180" />
+      </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start">
+      <dc:Bounds x="232" y="655.3333333333334" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="222" y="696.3333333333334" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_manager">
+      <dc:Bounds x="1032" y="655.3333333333334" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1022" y="630.3333333333334" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_archive">
+      <dc:Bounds x="1032" y="972" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1022" y="1013" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_director">
+      <dc:Bounds x="1032" y="335.3333333333333" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1022" y="310.3333333333333" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_review">
+      <dc:Bounds x="400" y="633.3333333333334" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="390" y="718.3333333333334" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_approved">
+      <dc:Bounds x="800" y="633.3333333333334" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="718.3333333333334" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_revision">
+      <dc:Bounds x="800" y="766.6666666666667" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="851.6666666666667" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_escalate">
+      <dc:Bounds x="800" y="313.3333333333333" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="398.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_request_info">
+      <dc:Bounds x="800" y="446.66666666666663" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="531.6666666666666" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_archive">
+      <dc:Bounds x="800" y="950" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="1035" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gw_decision">
+      <dc:Bounds x="625" y="648.3333333333334" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="565" y="628.3333333333334" width="80" height="40" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="f1">
+      <di:waypoint x="268" y="673.3333333333334"/>
+      <di:waypoint x="400" y="673.3333333333334"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f2">
+      <di:waypoint x="500" y="673.3333333333334"/>
+      <di:waypoint x="625" y="673.3333333333334"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_approved">
+      <di:waypoint x="675" y="673.3333333333334"/>
+      <di:waypoint x="800" y="673.3333333333334"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="675" y="653.3333333333334" width="66" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_revision">
+      <di:waypoint x="650" y="698.3333333333334"/>
+      <di:waypoint x="650" y="806.6666666666667"/>
+      <di:waypoint x="800" y="806.6666666666667"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="675" y="786.6666666666667" width="108" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_escalate">
+      <di:waypoint x="650" y="648.3333333333334"/>
+      <di:waypoint x="650" y="353.3333333333333"/>
+      <di:waypoint x="800" y="353.3333333333333"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="675" y="333.3333333333333" width="66" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_request_info">
+      <di:waypoint x="650" y="648.3333333333334"/>
+      <di:waypoint x="650" y="486.66666666666663"/>
+      <di:waypoint x="800" y="486.66666666666663"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="675" y="466.66666666666663" width="73" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_archive">
+      <di:waypoint x="650" y="698.3333333333334"/>
+      <di:waypoint x="650" y="990"/>
+      <di:waypoint x="800" y="990"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="675" y="970" width="59" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f3">
+      <di:waypoint x="900" y="673.3333333333334"/>
+      <di:waypoint x="1032" y="673.3333333333334"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f4">
+      <di:waypoint x="900" y="806.6666666666667"/>
+      <di:waypoint x="1050" y="806.6666666666667"/>
+      <di:waypoint x="1050" y="691.3333333333334"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f5">
+      <di:waypoint x="900" y="990"/>
+      <di:waypoint x="1032" y="990"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f6">
+      <di:waypoint x="900" y="353.3333333333333"/>
+      <di:waypoint x="1032" y="353.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f7">
+      <di:waypoint x="900" y="486.66666666666663"/>
+      <di:waypoint x="1050" y="486.66666666666663"/>
+      <di:waypoint x="1050" y="371.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

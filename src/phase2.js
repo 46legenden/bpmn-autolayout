@@ -643,6 +643,13 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   // Check if only single cross-lane forward-flow (rest are back-flows or same-lane)
   const hasSingleCrossLaneOutput = crossLaneOutputs.length === 1;
 
+  // Check if multiple outputs go to the same target lane (would cause overlap)
+  const targetLaneCounts = new Map();
+  for (const { targetLane } of crossLaneOutputs) {
+    targetLaneCounts.set(targetLane, (targetLaneCounts.get(targetLane) || 0) + 1);
+  }
+  const hasMultipleOutputsToSameLane = Array.from(targetLaneCounts.values()).some(count => count > 1);
+
   // Check if cross-lane sides are free for optimization
   // For symmetric distribution (up AND down), both crossLane directions must be free
   // For horizontal lanes: crossLane='down', oppCrossLane='up'
@@ -655,8 +662,9 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   // 1. Only single cross-lane forward-flow (compact layout), OR
   // 2. Cross-lane outputs are symmetrically distributed (up AND down)
   // AND both cross-lane sides are free (no inputs from those directions)
+  // AND no multiple outputs to the same target lane (would cause overlap)
   // Otherwise use normal rule (layer + 1)
-  const shouldOptimize = (hasSingleCrossLaneOutput || isSymmetricDistribution) && canUseOptimization;
+  const shouldOptimize = !hasMultipleOutputsToSameLane && (hasSingleCrossLaneOutput || isSymmetricDistribution) && canUseOptimization;
   const layerOffset = (crossLaneOutputs.length > 0 && shouldOptimize) ? 0 : 1;
 
   // Assign symmetric rows only for same-lane outputs
@@ -687,8 +695,26 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
     }
   }
 
-  // Cross-lane outputs - use optimized layer if symmetric
-  for (const { targetId, targetLane } of crossLaneOutputs) {
+  // Cross-lane outputs - assign rows grouped by target lane to prevent overlaps
+  // Group outputs by target lane
+  const outputsByLane = new Map();
+  for (const output of crossLaneOutputs) {
+    if (!outputsByLane.has(output.targetLane)) {
+      outputsByLane.set(output.targetLane, []);
+    }
+    outputsByLane.get(output.targetLane).push(output);
+  }
+  
+  // Assign rows within each lane group
+  for (const [targetLane, outputs] of outputsByLane) {
+    const rows = assignSymmetricRows(outputs.length);
+    outputs.forEach((output, i) => {
+      output.assignedRow = rows[i];
+    });
+  }
+  
+  // Create positions with assigned rows
+  for (const { targetId, targetLane, assignedRow } of crossLaneOutputs) {
     const newLayer = gatewayPos.layer + layerOffset;
     const existingPos = positions.get(targetId);
     
@@ -702,14 +728,14 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
       const targetPos = {
         lane: targetLane,
         layer: newLayer,
-        row: 0  // Always row 0 for cross-lane
+        row: assignedRow || 0  // Use assigned row, fallback to 0
       };
       positions.set(targetId, targetPos);
       outputPositions.set(targetId, targetPos);
     }
   }
 
-  return outputPositions;
+  return { outputPositions, layerOffset };
 }
 
 /**
@@ -1187,7 +1213,7 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
       const occupiedSides = determineGatewayOccupiedSides(sourceId, elements, flows, positions, elementLanes, lanes, directions, backEdgeSet);
       
       // Assign positions to gateway output targets
-      assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows, lanes, occupiedSides, directions);
+      const { outputPositions, layerOffset } = assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows, lanes, occupiedSides, directions);
       
       // Create flow info for this gateway output
       const flowInfo = createGatewayOutputFlowInfo(
@@ -1199,6 +1225,9 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
         lanes,
         directions
       );
+      
+      // Mark if gateway optimization was applied (for label positioning)
+      flowInfo.gatewayOptimized = (layerOffset === 0);
       flowInfos.set(flowId, flowInfo);
       
     } else {

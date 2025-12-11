@@ -894,7 +894,7 @@ export function generateElementDI(elements, coordinates, flowWaypoints, flows) {
  * @param {Map} flowInfos - All flow infos (to check other flows' exitSides)
  * @returns {Object} - {x, y, width, height}
  */
-function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows, flowInfo, flowInfos) {
+function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows, flowInfo, flowInfos, flowWaypoints) {
   const sourceEl = elements.get(flow.sourceRef);
   
   // Check if source is a gateway (output flow from gateway)
@@ -916,9 +916,13 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
   }
   
   // Gateway OUTPUT → unified positioning rules
-  const LABEL_WIDTH = 50;
   const LABEL_HEIGHT = 20;
-  const LABEL_OFFSET = 5;  // Consistent offset from arrow waypoint
+  const LABEL_OFFSET = 0;  // No offset - labels directly at waypoint
+  
+  // Calculate dynamic label width based on text length
+  // Approximate: 7 pixels per character + 10px padding
+  const textLength = flow.name ? flow.name.length : 10;
+  const LABEL_WIDTH = Math.max(50, textLength * 7 + 10);  // Minimum 50px
   
   // Get first waypoint (arrow exit point)
   const wp1 = waypoints[0];
@@ -946,52 +950,80 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
     }
   }
   
-  // Check for multiple outputs on the SAME exitSide (for knick positioning)
-  // Count how many flows from this gateway have the same exitSide
-  let sameExitSideCount = 0;
-  for (const [fId, f] of flows) {
-    if (f.sourceRef === flow.sourceRef && fId !== flow.id) {
-      const otherFlowInfo = flowInfos ? flowInfos.get(fId) : null;
-      const otherExitSide = otherFlowInfo?.source?.exitSide;
-      if (otherExitSide === exitSide) {
-        sameExitSideCount++;
+  // Check if target is in different layer than gateway
+  // If different layer → label at corridor (knick), if same layer → label near gateway
+  const gatewayLayer = flowInfo?.source?.layer;
+  const targetLayer = flowInfo?.target?.layer;
+  const shouldUseCorridor = gatewayLayer !== undefined && targetLayer !== undefined && 
+                            gatewayLayer !== targetLayer && waypoints.length >= 3;
+  
+  // Find the rightmost waypoint x among all flows from this gateway
+  // This ensures all labels align vertically at the same x-position
+  let rightmostWpX = wp1.x;
+  
+  if (flowWaypoints) {
+    for (const [otherFlowId, otherFlow] of flows) {
+      if (otherFlow.sourceRef === flow.sourceRef) {
+        const otherWaypoints = flowWaypoints.get(otherFlowId);
+        if (otherWaypoints && otherWaypoints.length > 0) {
+          const otherWp1X = otherWaypoints[0].x;
+          if (otherWp1X > rightmostWpX) {
+            rightmostWpX = otherWp1X;
+          }
+        }
       }
     }
   }
-  const hasMultipleSameExitSide = sameExitSideCount > 0 && waypoints.length >= 3;
+  
+  // Use rightmost waypoint as reference for all labels
+  const labelReferenceX = rightmostWpX;
   
   let labelX, labelY;
   
   if (exitSide === 'right') {
-    // Right: label above arrow, same X as waypoint
-    labelX = wp1.x + LABEL_OFFSET;
-    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
-    
-  } else if (exitSide === 'down') {
-    if (hasMultipleSameExitSide) {
-      // Multiple outputs: label at knick (horizontal segment)
+    if (shouldUseCorridor) {
+      // No optimization: label at corridor (knick)
       const secondLastWp = waypoints[waypoints.length - 2];
-      labelX = wp1.x + LABEL_OFFSET;  // Same X as right labels
+      labelX = labelReferenceX + LABEL_OFFSET;  // Aligned with rightmost waypoint
       labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
     } else {
-      // Single output: label right of arrow
-      labelX = wp1.x + LABEL_OFFSET;  // Same X as right labels
+      // Optimized: label near gateway
+      labelX = labelReferenceX + LABEL_OFFSET;
+      labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    }
+    
+  } else if (exitSide === 'down') {
+    if (shouldUseCorridor) {
+      // No optimization: label at corridor (knick)
+      const secondLastWp = waypoints[waypoints.length - 2];
+      labelX = labelReferenceX + LABEL_OFFSET;  // Aligned with rightmost waypoint
+      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
+    } else {
+      // Optimized: label near gateway
+      labelX = labelReferenceX + LABEL_OFFSET;
       labelY = wp1.y + LABEL_OFFSET;
     }
     
   } else if (exitSide === 'left') {
     // Left: label above arrow, left of waypoint
-    labelX = wp1.x - LABEL_WIDTH - LABEL_OFFSET;
+    labelX = labelReferenceX - LABEL_WIDTH - LABEL_OFFSET;
     labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
     
   } else if (exitSide === 'up') {
-    // Up: label right of arrow
-    labelX = wp1.x + LABEL_OFFSET;
-    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    if (shouldUseCorridor) {
+      // No optimization: label at corridor (knick)
+      const secondLastWp = waypoints[waypoints.length - 2];
+      labelX = labelReferenceX + LABEL_OFFSET;  // Aligned with rightmost waypoint
+      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;  // Above corridor
+    } else {
+      // Optimized: label near gateway
+      labelX = labelReferenceX + LABEL_OFFSET;
+      labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    }
     
   } else {
     // Fallback
-    labelX = wp1.x + LABEL_OFFSET;
+    labelX = labelReferenceX + LABEL_OFFSET;
     labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
   }
   
@@ -1028,7 +1060,7 @@ export function generateFlowDI(flows, flowWaypoints, elements, coordinates, flow
     // Add label if flow has a name
     if (flow.name) {
       const flowInfo = flowInfos ? flowInfos.get(flowId) : null;
-      const labelBounds = calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows, flowInfo, flowInfos);
+      const labelBounds = calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows, flowInfo, flowInfos, flowWaypoints);
       xml += `      <bpmndi:BPMNLabel>\n`;
       xml += `        <dc:Bounds x="${labelBounds.x}" y="${labelBounds.y}" width="${labelBounds.width}" height="${labelBounds.height}" />\n`;
       xml += `      </bpmndi:BPMNLabel>\n`;
