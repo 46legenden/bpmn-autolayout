@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_hr" name="HR">
+        <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_profile</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_docs_complete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_docs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_finalize</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_it" name="IT">
+        <bpmn:flowNodeRef>task_create_account</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_role</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_setup_dev</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_setup_standard</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_merge_it</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_manager" name="Manager">
+        <bpmn:flowNodeRef>task_approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_buddy</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_employee" name="Employee">
+        <bpmn:flowNodeRef>task_training</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_complete_profile</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- HR Lane -->
+    <bpmn:startEvent id="start1" name="New Hire">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="task_create_profile" name="Create Employee Profile">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="gw_docs_complete" name="Documents Complete?">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f_docs_yes</bpmn:outgoing>
+      <bpmn:outgoing>f_docs_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="task_collect_docs" name="Collect Missing Documents">
+      <bpmn:incoming>f_docs_no</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_finalize" name="Finalize Onboarding">
+      <bpmn:incoming>f_merge_final</bpmn:incoming>
+      <bpmn:outgoing>f_end</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="end1" name="Onboarding Complete">
+      <bpmn:incoming>f_end</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- IT Lane -->
+    <bpmn:task id="task_create_account" name="Create IT Account">
+      <bpmn:incoming>f_docs_yes</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="gw_role" name="Developer Role?">
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f_role_dev</bpmn:outgoing>
+      <bpmn:outgoing>f_role_standard</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="task_setup_dev" name="Setup Dev Environment">
+      <bpmn:incoming>f_role_dev</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_setup_standard" name="Setup Standard Tools">
+      <bpmn:incoming>f_role_standard</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="gw_merge_it" name="">
+      <bpmn:incoming>f5</bpmn:incoming>
+      <bpmn:incoming>f6</bpmn:incoming>
+      <bpmn:outgoing>f7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Manager Lane -->
+    <bpmn:task id="task_approve" name="Approve Access">
+      <bpmn:incoming>f7</bpmn:incoming>
+      <bpmn:outgoing>f8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_assign_buddy" name="Assign Buddy">
+      <bpmn:incoming>f8</bpmn:incoming>
+      <bpmn:outgoing>f9</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Employee Lane -->
+    <bpmn:task id="task_training" name="Complete Training">
+      <bpmn:incoming>f9</bpmn:incoming>
+      <bpmn:outgoing>f10</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_complete_profile" name="Complete Personal Profile">
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:outgoing>f_merge_final</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="f1" sourceRef="start1" targetRef="task_create_profile"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="task_create_profile" targetRef="gw_docs_complete"/>
+    <bpmn:sequenceFlow id="f_docs_yes" name="Yes" sourceRef="gw_docs_complete" targetRef="task_create_account"/>
+    <bpmn:sequenceFlow id="f_docs_no" name="No" sourceRef="gw_docs_complete" targetRef="task_collect_docs"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="task_collect_docs" targetRef="task_complete_profile"/>
+    <bpmn:sequenceFlow id="f4" sourceRef="task_create_account" targetRef="gw_role"/>
+    <bpmn:sequenceFlow id="f_role_dev" name="Yes" sourceRef="gw_role" targetRef="task_setup_dev"/>
+    <bpmn:sequenceFlow id="f_role_standard" name="No" sourceRef="gw_role" targetRef="task_setup_standard"/>
+    <bpmn:sequenceFlow id="f5" sourceRef="task_setup_dev" targetRef="gw_merge_it"/>
+    <bpmn:sequenceFlow id="f6" sourceRef="task_setup_standard" targetRef="gw_merge_it"/>
+    <bpmn:sequenceFlow id="f7" sourceRef="gw_merge_it" targetRef="task_approve"/>
+    <bpmn:sequenceFlow id="f8" sourceRef="task_approve" targetRef="task_assign_buddy"/>
+    <bpmn:sequenceFlow id="f9" sourceRef="task_assign_buddy" targetRef="task_training"/>
+    <bpmn:sequenceFlow id="f10" sourceRef="task_training" targetRef="task_complete_profile"/>
+    <bpmn:sequenceFlow id="f_merge_final" sourceRef="task_complete_profile" targetRef="task_finalize"/>
+    <bpmn:sequenceFlow id="f_end" sourceRef="task_finalize" targetRef="end1"/>
+  </bpmn:process>
+  <bpmn:collaboration>
+    <bpmn:participant id="pool" name="Employee Onboarding" processRef="Process_1"/>
+  </bpmn:collaboration>
+</bpmn:definitions>

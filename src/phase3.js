@@ -1024,9 +1024,80 @@ export function generateFlowDI(flows, flowWaypoints, elements, coordinates, flow
  * @param {Map} flowInfos - Flow infos from Phase 2
  * @returns {string} - BPMN XML with DI
  */
+/**
+ * Remove deleted elements and flows from BPMN XML
+ * (Elements/flows that were removed during pre-processing)
+ * @param {string} bpmnXml - Original BPMN XML
+ * @param {Map} elements - Processed elements map
+ * @param {Map} flows - Processed flows map
+ * @returns {string} - Cleaned BPMN XML
+ */
+function removeDeletedElementsFromXML(bpmnXml, elements, flows) {
+  let cleanedXml = bpmnXml;
+  
+  // Find all element IDs in the XML
+  const elementRegex = /<bpmn:(task|exclusiveGateway|parallelGateway|inclusiveGateway|startEvent|endEvent)[^>]+id="([^"]+)"[^>]*(?:\/>|>[\s\S]*?<\/bpmn:\1>)/g;
+  let match;
+  const xmlElementIds = [];
+  
+  while (match = elementRegex.exec(bpmnXml)) {
+    xmlElementIds.push({id: match[2], fullMatch: match[0]});
+  }
+  
+  // Remove elements that are not in the processed elements map
+  for (const {id, fullMatch} of xmlElementIds) {
+    if (!elements.has(id)) {
+      // Element was removed during pre-processing - remove from XML
+      cleanedXml = cleanedXml.replace(fullMatch, '');
+      
+      // Also remove flowNodeRef from lane
+      const flowNodeRefRegex = new RegExp(`\\s*<bpmn:flowNodeRef>${id}</bpmn:flowNodeRef>\\s*`, 'g');
+      cleanedXml = cleanedXml.replace(flowNodeRefRegex, '\n');
+    }
+  }
+  
+  // Find all flow IDs in the XML
+  const flowRegex = /<bpmn:sequenceFlow[^>]+id="([^"]+)"[^>]*(?:\/>|>[\s\S]*?<\/bpmn:sequenceFlow>)/g;
+  const xmlFlowIds = [];
+  
+  while (match = flowRegex.exec(bpmnXml)) {
+    xmlFlowIds.push({id: match[1], fullMatch: match[0]});
+  }
+  
+  // Remove flows that are not in the processed flows map
+  for (const {id, fullMatch} of xmlFlowIds) {
+    if (!flows.has(id)) {
+      // Flow was removed during pre-processing - remove from XML
+      cleanedXml = cleanedXml.replace(fullMatch, '');
+    }
+  }
+  
+  // Update flow attributes (sourceRef, targetRef) to match processed flows
+  // This is needed when flows are redirected (e.g., XOR merge gateway removal)
+  for (const [flowId, flow] of flows) {
+    const flowMatch = cleanedXml.match(new RegExp(`<bpmn:sequenceFlow[^>]+id="${flowId}"[^>]*(?:/>|>[\\s\\S]*?</bpmn:sequenceFlow>)`));
+    if (flowMatch) {
+      const originalFlow = flowMatch[0];
+      // Update sourceRef and targetRef to match processed flow
+      let updatedFlow = originalFlow
+        .replace(/sourceRef="[^"]+"/, `sourceRef="${flow.sourceRef}"`)
+        .replace(/targetRef="[^"]+"/, `targetRef="${flow.targetRef}"`);
+      cleanedXml = cleanedXml.replace(originalFlow, updatedFlow);
+    }
+  }
+  
+  // Clean up empty lines and extra whitespace
+  cleanedXml = cleanedXml.replace(/\n\s*\n/g, '\n');
+  
+  return cleanedXml;
+}
+
 export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, flowInfos) {
+  // Remove deleted elements/flows from XML first
+  const cleanedXml = removeDeletedElementsFromXML(bpmnXml, elements, flows);
+  
   // Extract pool ID from BPMN XML (participant element)
-  const poolMatch = bpmnXml.match(/<bpmn:participant\s+id="([^"]+)"/);  
+  const poolMatch = cleanedXml.match(/<bpmn:participant\s+id="([^"]+)"/);  
   const poolId = poolMatch ? poolMatch[1] : null;
   
   // Calculate pool bounds (needs coordinates for width calculation)
@@ -1039,10 +1110,10 @@ export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowW
   const flowDI = generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos);
   
   // Check if DI already exists
-  if (bpmnXml.includes('<bpmndi:BPMNDiagram')) {
+  if (cleanedXml.includes('<bpmndi:BPMNDiagram')) {
     // Replace existing DI
-    const diStart = bpmnXml.indexOf('<bpmndi:BPMNDiagram');
-    const diEnd = bpmnXml.indexOf('</bpmndi:BPMNDiagram>') + '</bpmndi:BPMNDiagram>'.length;
+    const diStart = cleanedXml.indexOf('<bpmndi:BPMNDiagram');
+    const diEnd = cleanedXml.indexOf('</bpmndi:BPMNDiagram>') + '</bpmndi:BPMNDiagram>'.length;
     
     const newDI = `  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
@@ -1050,10 +1121,10 @@ ${poolDI ? poolDI + '\n' : ''}${laneDI}
 ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>`;
     
-    return bpmnXml.substring(0, diStart) + newDI + bpmnXml.substring(diEnd);
+    return cleanedXml.substring(0, diStart) + newDI + cleanedXml.substring(diEnd);
   } else {
     // Add new DI before closing </definitions>
-    const definitionsEnd = bpmnXml.lastIndexOf('</bpmn:definitions>');
+    const definitionsEnd = cleanedXml.lastIndexOf('</bpmn:definitions>');
     
     const newDI = `  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
@@ -1062,7 +1133,7 @@ ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 `;
     
-    return bpmnXml.substring(0, definitionsEnd) + newDI + bpmnXml.substring(definitionsEnd);
+    return cleanedXml.substring(0, definitionsEnd) + newDI + cleanedXml.substring(definitionsEnd);
   }
 }
 

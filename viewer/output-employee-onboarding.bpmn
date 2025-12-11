@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_hr" name="HR">
+        <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_profile</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_docs_complete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_docs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_finalize</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_it" name="IT">
+        <bpmn:flowNodeRef>task_create_account</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_role</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_setup_dev</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_setup_standard</bpmn:flowNodeRef>
+</bpmn:lane>
+      <bpmn:lane id="lane_manager" name="Manager">
+        <bpmn:flowNodeRef>task_approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_buddy</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_employee" name="Employee">
+        <bpmn:flowNodeRef>task_training</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_complete_profile</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <!-- HR Lane -->
+    <bpmn:startEvent id="start1" name="New Hire">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="task_create_profile" name="Create Employee Profile">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="gw_docs_complete" name="Documents Complete?">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f_docs_yes</bpmn:outgoing>
+      <bpmn:outgoing>f_docs_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="task_collect_docs" name="Collect Missing Documents">
+      <bpmn:incoming>f_docs_no</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_finalize" name="Finalize Onboarding">
+      <bpmn:incoming>f_merge_final</bpmn:incoming>
+      <bpmn:outgoing>f_end</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="end1" name="Onboarding Complete">
+      <bpmn:incoming>f_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <!-- IT Lane -->
+    <bpmn:task id="task_create_account" name="Create IT Account">
+      <bpmn:incoming>f_docs_yes</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="gw_role" name="Developer Role?">
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f_role_dev</bpmn:outgoing>
+      <bpmn:outgoing>f_role_standard</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="task_setup_dev" name="Setup Dev Environment">
+      <bpmn:incoming>f_role_dev</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_setup_standard" name="Setup Standard Tools">
+      <bpmn:incoming>f_role_standard</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Manager Lane -->
+    <bpmn:task id="task_approve" name="Approve Access">
+      <bpmn:incoming>f7</bpmn:incoming>
+      <bpmn:outgoing>f8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_assign_buddy" name="Assign Buddy">
+      <bpmn:incoming>f8</bpmn:incoming>
+      <bpmn:outgoing>f9</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Employee Lane -->
+    <bpmn:task id="task_training" name="Complete Training">
+      <bpmn:incoming>f9</bpmn:incoming>
+      <bpmn:outgoing>f10</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task_complete_profile" name="Complete Personal Profile">
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:outgoing>f_merge_final</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="f1" sourceRef="start1" targetRef="task_create_profile"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="task_create_profile" targetRef="gw_docs_complete"/>
+    <bpmn:sequenceFlow id="f_docs_yes" name="Yes" sourceRef="gw_docs_complete" targetRef="task_create_account"/>
+    <bpmn:sequenceFlow id="f_docs_no" name="No" sourceRef="gw_docs_complete" targetRef="task_collect_docs"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="task_collect_docs" targetRef="task_complete_profile"/>
+    <bpmn:sequenceFlow id="f4" sourceRef="task_create_account" targetRef="gw_role"/>
+    <bpmn:sequenceFlow id="f_role_dev" name="Yes" sourceRef="gw_role" targetRef="task_setup_dev"/>
+    <bpmn:sequenceFlow id="f_role_standard" name="No" sourceRef="gw_role" targetRef="task_setup_standard"/>
+    <bpmn:sequenceFlow id="f5" sourceRef="task_setup_dev" targetRef="task_approve"/>
+    <bpmn:sequenceFlow id="f6" sourceRef="task_setup_standard" targetRef="task_approve"/>
+    <bpmn:sequenceFlow id="f8" sourceRef="task_approve" targetRef="task_assign_buddy"/>
+    <bpmn:sequenceFlow id="f9" sourceRef="task_assign_buddy" targetRef="task_training"/>
+    <bpmn:sequenceFlow id="f10" sourceRef="task_training" targetRef="task_complete_profile"/>
+    <bpmn:sequenceFlow id="f_merge_final" sourceRef="task_complete_profile" targetRef="task_finalize"/>
+    <bpmn:sequenceFlow id="f_end" sourceRef="task_finalize" targetRef="end1"/>
+  </bpmn:process>
+  <bpmn:collaboration>
+    <bpmn:participant id="pool" name="Employee Onboarding" processRef="Process_1"/>
+  </bpmn:collaboration>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="pool_di" bpmnElement="pool" isHorizontal="true">
+        <dc:Bounds x="150" y="80" width="2218" height="860" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_hr_di" bpmnElement="lane_hr" isHorizontal="true">
+        <dc:Bounds x="180" y="80" width="2188" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_it_di" bpmnElement="lane_it" isHorizontal="true">
+        <dc:Bounds x="180" y="260" width="2188" height="320" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_manager_di" bpmnElement="lane_manager" isHorizontal="true">
+        <dc:Bounds x="180" y="580" width="2188" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_employee_di" bpmnElement="lane_employee" isHorizontal="true">
+        <dc:Bounds x="180" y="760" width="2188" height="180" />
+      </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start1">
+      <dc:Bounds x="232" y="152" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="222" y="193" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end1">
+      <dc:Bounds x="2232" y="152" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2222" y="193" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_create_profile">
+      <dc:Bounds x="400" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="390" y="215" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_collect_docs">
+      <dc:Bounds x="800" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="215" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_finalize">
+      <dc:Bounds x="2000" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1990" y="105" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_create_account">
+      <dc:Bounds x="600" y="313.3333333333333" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="398.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_setup_dev">
+      <dc:Bounds x="1000" y="313.3333333333333" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="990" y="398.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_setup_standard">
+      <dc:Bounds x="1000" y="446.66666666666663" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="990" y="531.6666666666666" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_approve">
+      <dc:Bounds x="1200" y="630" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1190" y="715" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_assign_buddy">
+      <dc:Bounds x="1400" y="630" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1390" y="715" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_training">
+      <dc:Bounds x="1600" y="810" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1590" y="895" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_complete_profile">
+      <dc:Bounds x="1800" y="810" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1790" y="895" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gw_docs_complete">
+      <dc:Bounds x="625" y="145" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="568" y="140" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gw_role">
+      <dc:Bounds x="825" y="328.3333333333333" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="768" y="323.3333333333333" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="f1">
+      <di:waypoint x="268" y="170"/>
+      <di:waypoint x="400" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f2">
+      <di:waypoint x="500" y="170"/>
+      <di:waypoint x="625" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_docs_yes">
+      <di:waypoint x="650" y="195"/>
+      <di:waypoint x="650" y="313.3333333333333"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="655" y="200" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_docs_no">
+      <di:waypoint x="675" y="170"/>
+      <di:waypoint x="800" y="170"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="680" y="145" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f3">
+      <di:waypoint x="900" y="170"/>
+      <di:waypoint x="1850" y="170"/>
+      <di:waypoint x="1850" y="810"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f4">
+      <di:waypoint x="700" y="353.3333333333333"/>
+      <di:waypoint x="825" y="353.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_role_dev">
+      <di:waypoint x="875" y="353.3333333333333"/>
+      <di:waypoint x="1000" y="353.3333333333333"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="880" y="328.3333333333333" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_role_standard">
+      <di:waypoint x="850" y="378.3333333333333"/>
+      <di:waypoint x="850" y="486.66666666666663"/>
+      <di:waypoint x="1000" y="486.66666666666663"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="855" y="383.3333333333333" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f5">
+      <di:waypoint x="1100" y="353.3333333333333"/>
+      <di:waypoint x="1250" y="353.3333333333333"/>
+      <di:waypoint x="1250" y="630"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f6">
+      <di:waypoint x="1100" y="486.66666666666663"/>
+      <di:waypoint x="1250" y="486.66666666666663"/>
+      <di:waypoint x="1250" y="630"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f8">
+      <di:waypoint x="1300" y="670"/>
+      <di:waypoint x="1400" y="670"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f9">
+      <di:waypoint x="1500" y="670"/>
+      <di:waypoint x="1650" y="670"/>
+      <di:waypoint x="1650" y="810"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f10">
+      <di:waypoint x="1700" y="850"/>
+      <di:waypoint x="1800" y="850"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_merge_final">
+      <di:waypoint x="1900" y="850"/>
+      <di:waypoint x="2050" y="850"/>
+      <di:waypoint x="2050" y="210"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f_end">
+      <di:waypoint x="2100" y="170"/>
+      <di:waypoint x="2232" y="170"/>
+    </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
