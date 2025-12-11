@@ -1,0 +1,146 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Phase 2: Layer and Row Assignment (Snapshot-based) > should assign correct positions and flow infos for input-4outputs.bpmn 1`] = `
+{
+  "end1": {
+    "lane": "lane1",
+    "layer": 3,
+    "row": 0,
+  },
+  "gw1": {
+    "lane": "lane2",
+    "layer": 1,
+    "row": 0,
+  },
+  "start1": {
+    "lane": "lane1",
+    "layer": 0,
+    "row": 0,
+  },
+  "task1": {
+    "lane": "lane1",
+    "layer": 1,
+    "row": 0,
+  },
+  "task2": {
+    "lane": "lane2",
+    "layer": 2,
+    "row": 0,
+  },
+  "task3": {
+    "lane": "lane2",
+    "layer": 2,
+    "row": 1,
+  },
+  "task4": {
+    "lane": "lane2",
+    "layer": 2,
+    "row": 2,
+  },
+  "task5": {
+    "lane": "lane2",
+    "layer": 2,
+    "row": 3,
+  },
+}
+`;
+
+exports[`Phase 2: Layer and Row Assignment (Snapshot-based) > should assign correct positions and flow infos for input-4outputs.bpmn 2`] = `
+{
+  "f1": {
+    "entrySide": "left",
+    "exitSide": "right",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f10": {
+    "entrySide": "down",
+    "exitSide": "right",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f2": {
+    "entrySide": "up",
+    "exitSide": "down",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f3": {
+    "entrySide": "left",
+    "exitSide": "right",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f4": {
+    "entrySide": "left",
+    "exitSide": "down",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f5": {
+    "entrySide": "left",
+    "exitSide": "down",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f6": {
+    "entrySide": "left",
+    "exitSide": "down",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f7": {
+    "entrySide": "down",
+    "exitSide": "right",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f8": {
+    "entrySide": "down",
+    "exitSide": "right",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+  "f9": {
+    "entrySide": "down",
+    "exitSide": "right",
+    "hasWaypoint": true,
+    "waypoint": null,
+  },
+}
+`;
+
+exports[`Phase 2: Layer and Row Assignment (Snapshot-based) > should assign correct positions for simple-3-lane.bpmn 1`] = `
+{
+  "end1": {
+    "lane": "lane1",
+    "layer": 4,
+    "row": 0,
+  },
+  "start1": {
+    "lane": "lane1",
+    "layer": 0,
+    "row": 0,
+  },
+  "task1": {
+    "lane": "lane1",
+    "layer": 2,
+    "row": 0,
+  },
+  "task2": {
+    "lane": "lane2",
+    "layer": 2,
+    "row": 0,
+  },
+  "task3": {
+    "lane": "lane3",
+    "layer": 2,
+    "row": 0,
+  },
+  "xor1": {
+    "lane": "lane1",
+    "layer": 1,
+    "row": 0,
+  },
+}
+`;

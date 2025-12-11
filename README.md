@@ -8,7 +8,7 @@
 - ✅ **Collision-Free Layouts** - Proactive collision prevention through corridor reservation
 - ✅ **Configurable Gateway Handling** - Optional XOR merge gateway removal for cleaner visuals
 - ✅ **Loop Support** - Handles back-flows with proper waypoint routing
-- ✅ **Comprehensive Testing** - Unit, integration, and snapshot tests
+- ✅ **Comprehensive Testing** - Snapshot-based unit tests and visual integration tests
 
 ## Quick Start
 
@@ -110,7 +110,20 @@ bpmn-autolayout/
 └── README.md
 ```
 
-### Running Tests
+### Testing Strategy
+
+**Snapshot-Based Unit Tests:**
+- Tests use real BPMN files from successful integration tests
+- Each phase output is captured as a snapshot
+- Automatic regression detection when algorithm changes
+
+**Integration Tests:**
+- End-to-end tests with visually verified layouts
+- Golden examples for important BPMN patterns
+- Input: KI-generated BPMN (without layout)
+- Output: Visually verified correct layout
+
+**Running Tests:**
 
 ```bash
 # Run all tests
@@ -122,6 +135,13 @@ npm run test:watch
 # Update snapshots (after verifying changes are correct)
 npm run test:update-snapshots
 ```
+
+**Current Test Coverage:**
+- ✅ Phase 1: Validation and parsing
+- ✅ Phase 2: Position assignment (snapshot-based)
+- ✅ Phase 3: Coordinate calculation (snapshot-based)
+- ✅ Integration: `output-4outputs` (gateway with multiple outputs)
+- ✅ Integration: `simple-3-lane` (basic cross-lane flows)
 
 ## Design Principles
 

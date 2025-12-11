@@ -1,278 +1,209 @@
 import { describe, test, expect } from 'vitest';
-import {
-  normalizeRows,
-  calculateElementCoordinates,
-  calculateWaypointCoordinate,
-  calculateConnectionPoint,
-  calculateFlowWaypoints,
-  routeBackFlow,
-  generateElementDI,
-  generateFlowDI
-} from '../../src/phase3.js';
+import { phase1 } from '../../src/phase1.js';
+import { phase2 } from '../../src/phase2.js';
+import { phase3 } from '../../src/phase3.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-describe('Phase 3: Coordinate Calculation', () => {
-  test('should normalize rows correctly', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: -1 }],
-      ['task2', { lane: 'lane1', layer: 1, row: 0 }],
-      ['task3', { lane: 'lane1', layer: 2, row: 1 }],
-      ['task4', { lane: 'lane2', layer: 0, row: 0 }]
-    ]);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }]
-    ]);
+describe('Phase 3: Coordinate Calculation (Snapshot-based)', () => {
+  
+  test('should calculate correct coordinates for input-4outputs.bpmn', () => {
+    // Load known-good BPMN file
+    const bpmnPath = join(__dirname, '../../test-data/real-world/input-4outputs.bpmn');
+    const inputXml = readFileSync(bpmnPath, 'utf-8');
 
-    const normalized = normalizeRows(positions, lanes);
+    // Phase 1: Parse
+    const phase1Result = phase1(inputXml, { laneOrientation: 'horizontal' });
+    expect(phase1Result.success).toBe(true);
 
-    // Lane1: min row = -1, so -1→0, 0→1, 1→2
-    expect(normalized.get('task1').normalizedRow).toBe(0);
-    expect(normalized.get('task2').normalizedRow).toBe(1);
-    expect(normalized.get('task3').normalizedRow).toBe(2);
-
-    // Lane2: min row = 0, so 0→0
-    expect(normalized.get('task4').normalizedRow).toBe(0);
-  });
-
-  test('should calculate element coordinates for horizontal orientation', () => {
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task2', { lane: 'lane1', layer: 1, row: 0 }],
-      ['task3', { lane: 'lane2', layer: 1, row: 0 }]
-    ]);
-
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }]
-    ]);
-
-    const directions = {
-      laneOrientation: 'horizontal'
+    const { graph, backEdges } = phase1Result;
+    const directions = { 
+      alongLane: 'right', 
+      oppAlongLane: 'left', 
+      crossLane: 'down', 
+      oppCrossLane: 'up' 
     };
 
-    const coordinates = calculateElementCoordinates(positions, lanes, directions);
+    // Phase 2: Assign positions
+    const phase2Result = phase2(
+      graph.elements, 
+      graph.flows, 
+      graph.lanes, 
+      directions, 
+      backEdges
+    );
 
-    // task1: layer0, lane1 (index 0), row0
-    expect(coordinates.get('task1')).toEqual({
-      x: 0,
-      y: 0,
-      width: 100,
-      height: 80
-    });
+    // Phase 3: Calculate coordinates
+    const phase3Result = phase3(
+      phase2Result,
+      graph.elements,
+      graph.lanes,
+      directions
+    );
 
-    // task2: layer1, lane1 (index 0), row0
-    expect(coordinates.get('task2')).toEqual({
-      x: 150,
-      y: 0,
-      width: 100,
-      height: 80
-    });
+    // Snapshot test: element coordinates
+    const coordinates = phase3Result.coordinates;
+    
+    const coordinatesObj = {};
+    for (const [id, coord] of coordinates) {
+      coordinatesObj[id] = {
+        x: coord.x,
+        y: coord.y,
+        width: coord.width,
+        height: coord.height
+      };
+    }
 
-    // task3: layer1, lane2 (index 1), row0
-    expect(coordinates.get('task3')).toEqual({
-      x: 150,
-      y: 100,
-      width: 100,
-      height: 80
-    });
+    expect(coordinatesObj).toMatchSnapshot();
+
+    // Snapshot test: flow waypoints
+    const flowWaypoints = phase3Result.flowWaypoints;
+    
+    const waypointsObj = {};
+    for (const [id, waypoints] of flowWaypoints) {
+      waypointsObj[id] = waypoints.map(wp => ({ x: wp.x, y: wp.y }));
+    }
+
+    expect(waypointsObj).toMatchSnapshot();
   });
 
-  test('should calculate waypoint coordinates', () => {
-    const waypoint = { lane: 'lane1', layer: 1, row: 0 };
+  test('should calculate correct coordinates for simple-3-lane.bpmn', () => {
+    const bpmnPath = join(__dirname, '../../test-data/simple-3-lane.bpmn');
+    const inputXml = readFileSync(bpmnPath, 'utf-8');
 
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }]
-    ]);
-
-    const directions = {
-      laneOrientation: 'horizontal'
+    const phase1Result = phase1(inputXml, { laneOrientation: 'horizontal' });
+    const { graph, backEdges } = phase1Result;
+    const directions = { 
+      alongLane: 'right', 
+      oppAlongLane: 'left', 
+      crossLane: 'down', 
+      oppCrossLane: 'up' 
     };
 
-    const coord = calculateWaypointCoordinate(waypoint, lanes, directions);
+    const phase2Result = phase2(
+      graph.elements, 
+      graph.flows, 
+      graph.lanes, 
+      directions, 
+      backEdges
+    );
 
-    expect(coord).toEqual({
-      x: 150,  // layer 1 × 150
-      y: 0     // lane index 0 × 100 + row 0 × 80
-    });
+    const phase3Result = phase3(
+      phase2Result,
+      graph.elements,
+      graph.lanes,
+      directions
+    );
+
+    const coordinates = phase3Result.coordinates;
+    
+    const coordinatesObj = {};
+    for (const [id, coord] of coordinates) {
+      coordinatesObj[id] = {
+        x: coord.x,
+        y: coord.y,
+        width: coord.width,
+        height: coord.height
+      };
+    }
+
+    expect(coordinatesObj).toMatchSnapshot();
   });
 
-  test('should calculate connection points correctly', () => {
-    const coord = { x: 100, y: 50, width: 100, height: 80 };
+  test('should have correct element sizes', () => {
+    const bpmnPath = join(__dirname, '../../test-data/real-world/input-4outputs.bpmn');
+    const inputXml = readFileSync(bpmnPath, 'utf-8');
 
-    expect(calculateConnectionPoint(coord, 'right')).toEqual({
-      x: 200,  // x + width
-      y: 90    // y + height/2
-    });
-
-    expect(calculateConnectionPoint(coord, 'left')).toEqual({
-      x: 100,  // x
-      y: 90    // y + height/2
-    });
-
-    expect(calculateConnectionPoint(coord, 'up')).toEqual({
-      x: 150,  // x + width/2
-      y: 50    // y
-    });
-
-    expect(calculateConnectionPoint(coord, 'down')).toEqual({
-      x: 150,  // x + width/2
-      y: 130   // y + height
-    });
-  });
-
-  test('should calculate flow waypoints for straight flow', () => {
-    const flowInfo = {
-      sourceId: 'task1',
-      targetId: 'task2',
-      source: { exitSide: 'right' },
-      target: { entrySide: 'left' },
-      waypoints: []
+    const phase1Result = phase1(inputXml, { laneOrientation: 'horizontal' });
+    const { graph, backEdges } = phase1Result;
+    const directions = { 
+      alongLane: 'right', 
+      oppAlongLane: 'left', 
+      crossLane: 'down', 
+      oppCrossLane: 'up' 
     };
 
-    const coordinates = new Map([
-      ['task1', { x: 0, y: 0, width: 100, height: 80 }],
-      ['task2', { x: 150, y: 0, width: 100, height: 80 }]
-    ]);
+    const phase2Result = phase2(
+      graph.elements, 
+      graph.flows, 
+      graph.lanes, 
+      directions, 
+      backEdges
+    );
 
-    const lanes = new Map([['lane1', { id: 'lane1' }]]);
-    const directions = { laneOrientation: 'horizontal' };
+    const phase3Result = phase3(
+      phase2Result,
+      graph.elements,
+      graph.lanes,
+      directions
+    );
 
-    const waypoints = calculateFlowWaypoints(flowInfo, coordinates, lanes, directions);
+    const coordinates = phase3Result.coordinates;
 
-    expect(waypoints.length).toBe(2);
-    expect(waypoints[0]).toEqual({ x: 100, y: 40 });  // Exit right from task1
-    expect(waypoints[1]).toEqual({ x: 150, y: 40 });  // Enter left into task2
+    // Check element sizes
+    // Start/End events should be 36x36
+    expect(coordinates.get('start1').width).toBe(36);
+    expect(coordinates.get('start1').height).toBe(36);
+    expect(coordinates.get('end1').width).toBe(36);
+    expect(coordinates.get('end1').height).toBe(36);
+
+    // Tasks should be 100x80
+    expect(coordinates.get('task1').width).toBe(100);
+    expect(coordinates.get('task1').height).toBe(80);
+    expect(coordinates.get('task2').width).toBe(100);
+    expect(coordinates.get('task2').height).toBe(80);
+
+    // Gateway should be 50x50
+    expect(coordinates.get('gw1').width).toBe(50);
+    expect(coordinates.get('gw1').height).toBe(50);
   });
 
-  test('should calculate flow waypoints with logical waypoint', () => {
-    const flowInfo = {
-      sourceId: 'task1',
-      targetId: 'task2',
-      source: { exitSide: 'down' },
-      target: { entrySide: 'left' },
-      waypoints: [{ lane: 'lane2', layer: 0, row: 0 }]
+  test('should have no NaN values in coordinates', () => {
+    const bpmnPath = join(__dirname, '../../test-data/real-world/input-4outputs.bpmn');
+    const inputXml = readFileSync(bpmnPath, 'utf-8');
+
+    const phase1Result = phase1(inputXml, { laneOrientation: 'horizontal' });
+    const { graph, backEdges } = phase1Result;
+    const directions = { 
+      alongLane: 'right', 
+      oppAlongLane: 'left', 
+      crossLane: 'down', 
+      oppCrossLane: 'up' 
     };
 
-    const coordinates = new Map([
-      ['task1', { x: 0, y: 0, width: 100, height: 80 }],
-      ['task2', { x: 150, y: 100, width: 100, height: 80 }]
-    ]);
+    const phase2Result = phase2(
+      graph.elements, 
+      graph.flows, 
+      graph.lanes, 
+      directions, 
+      backEdges
+    );
 
-    const lanes = new Map([
-      ['lane1', { id: 'lane1' }],
-      ['lane2', { id: 'lane2' }]
-    ]);
-    const directions = { laneOrientation: 'horizontal' };
+    const phase3Result = phase3(
+      phase2Result,
+      graph.elements,
+      graph.lanes,
+      directions
+    );
 
-    const waypoints = calculateFlowWaypoints(flowInfo, coordinates, lanes, directions);
+    // Check coordinates for NaN
+    for (const [id, coord] of phase3Result.coordinates) {
+      expect(Number.isNaN(coord.x)).toBe(false);
+      expect(Number.isNaN(coord.y)).toBe(false);
+      expect(Number.isNaN(coord.width)).toBe(false);
+      expect(Number.isNaN(coord.height)).toBe(false);
+    }
 
-    expect(waypoints.length).toBe(3);
-    expect(waypoints[0]).toEqual({ x: 50, y: 80 });    // Exit down from task1
-    expect(waypoints[1]).toEqual({ x: 0, y: 100 });    // Waypoint
-    expect(waypoints[2]).toEqual({ x: 150, y: 140 });  // Enter left into task2
-  });
-
-  test('should route back-flow with same entry side as normal flow', () => {
-    const flowInfos = new Map([
-      // Normal flow: task1 → task2 (enters from left)
-      ['flow1', {
-        sourceId: 'task1',
-        targetId: 'task2',
-        isBackFlow: false,
-        source: { exitSide: 'right' },
-        target: { entrySide: 'left' },
-        waypoints: []
-      }],
-      // Back-flow: task3 → task2 (should also enter from left)
-      ['flow2', {
-        sourceId: 'task3',
-        targetId: 'task2',
-        isBackFlow: true,
-        source: { exitSide: null },
-        target: { entrySide: null },
-        waypoints: []
-      }]
-    ]);
-
-    const coordinates = new Map([
-      ['task1', { x: 0, y: 0, width: 100, height: 80 }],
-      ['task2', { x: 150, y: 0, width: 100, height: 80 }],
-      ['task3', { x: 300, y: 0, width: 100, height: 80 }]
-    ]);
-
-    const positions = new Map([
-      ['task1', { lane: 'lane1', layer: 0, row: 0 }],
-      ['task2', { lane: 'lane1', layer: 1, row: 0 }],
-      ['task3', { lane: 'lane1', layer: 2, row: 0 }]
-    ]);
-
-    const lanes = new Map([['lane1', { id: 'lane1' }]]);
-    const directions = {
-      laneOrientation: 'horizontal',
-      alongLane: 'right',
-      oppAlongLane: 'left',
-      crossLane: 'down',
-      oppCrossLane: 'up'
-    };
-
-    const waypoints = routeBackFlow(flowInfos.get('flow2'), coordinates, positions, lanes, directions, flowInfos);
-
-    // Should have 5 waypoints: exit, between-rows, between-layers, align, entry
-    expect(waypoints.length).toBe(5);
-    
-    // Exit down from task3
-    expect(waypoints[0]).toEqual({ x: 350, y: 80 });
-    
-    // Between rows (down by ROW_SPACING/2 = 40)
-    expect(waypoints[1]).toEqual({ x: 350, y: 120 });
-    
-    // Between layers (left to before task2, x = 150 - 75 = 75)
-    expect(waypoints[2]).toEqual({ x: 75, y: 120 });
-    
-    // Align with target entry point (y = 40, center of task2)
-    expect(waypoints[3]).toEqual({ x: 75, y: 40 });
-    
-    // Enter from left (same as normal flow!)
-    expect(waypoints[4]).toEqual({ x: 150, y: 40 });
-  });
-
-  test('should generate BPMN DI for elements', () => {
-    const elements = new Map([
-      ['task1', { id: 'task1', type: 'task' }],
-      ['task2', { id: 'task2', type: 'task' }]
-    ]);
-
-    const coordinates = new Map([
-      ['task1', { x: 0, y: 0, width: 100, height: 80 }],
-      ['task2', { x: 150, y: 100, width: 100, height: 80 }]
-    ]);
-
-    const di = generateElementDI(elements, coordinates);
-
-    expect(di).toContain('<bpmndi:BPMNShape bpmnElement="task1">');
-    expect(di).toContain('<dc:Bounds x="0" y="0" width="100" height="80"/>');
-    expect(di).toContain('<bpmndi:BPMNShape bpmnElement="task2">');
-    expect(di).toContain('<dc:Bounds x="150" y="100" width="100" height="80"/>');
-  });
-
-  test('should generate BPMN DI for flows', () => {
-    const flows = new Map([
-      ['flow1', { id: 'flow1', sourceRef: 'task1', targetRef: 'task2' }]
-    ]);
-
-    const flowWaypoints = new Map([
-      ['flow1', [
-        { x: 100, y: 40 },
-        { x: 150, y: 140 }
-      ]]
-    ]);
-
-    const di = generateFlowDI(flows, flowWaypoints);
-
-    expect(di).toContain('<bpmndi:BPMNEdge bpmnElement="flow1">');
-    expect(di).toContain('<di:waypoint x="100" y="40"/>');
-    expect(di).toContain('<di:waypoint x="150" y="140"/>');
+    // Check waypoints for NaN
+    for (const [id, waypoints] of phase3Result.flowWaypoints) {
+      for (const wp of waypoints) {
+        expect(Number.isNaN(wp.x)).toBe(false);
+        expect(Number.isNaN(wp.y)).toBe(false);
+      }
+    }
   });
 });

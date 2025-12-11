@@ -1,0 +1,228 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Phase 3: Coordinate Calculation (Snapshot-based) > should calculate correct coordinates for input-4outputs.bpmn 1`] = `
+{
+  "end1": {
+    "height": 36,
+    "width": 36,
+    "x": 832,
+    "y": 287,
+  },
+  "gw1": {
+    "height": 50,
+    "width": 50,
+    "x": 425,
+    "y": 433,
+  },
+  "start1": {
+    "height": 36,
+    "width": 36,
+    "x": 232,
+    "y": 287,
+  },
+  "task1": {
+    "height": 80,
+    "width": 100,
+    "x": 400,
+    "y": 265,
+  },
+  "task2": {
+    "height": 80,
+    "width": 100,
+    "x": 600,
+    "y": 418,
+  },
+  "task3": {
+    "height": 80,
+    "width": 100,
+    "x": 600,
+    "y": 536,
+  },
+  "task4": {
+    "height": 80,
+    "width": 100,
+    "x": 600,
+    "y": 654,
+  },
+  "task5": {
+    "height": 80,
+    "width": 100,
+    "x": 600,
+    "y": 772,
+  },
+}
+`;
+
+exports[`Phase 3: Coordinate Calculation (Snapshot-based) > should calculate correct coordinates for input-4outputs.bpmn 2`] = `
+{
+  "f1": [
+    {
+      "x": 268,
+      "y": 305,
+    },
+    {
+      "x": 400,
+      "y": 305,
+    },
+  ],
+  "f10": [
+    {
+      "x": 700,
+      "y": 812,
+    },
+    {
+      "x": 850,
+      "y": 812,
+    },
+    {
+      "x": 850,
+      "y": 323,
+    },
+  ],
+  "f2": [
+    {
+      "x": 450,
+      "y": 345,
+    },
+    {
+      "x": 450,
+      "y": 433,
+    },
+  ],
+  "f3": [
+    {
+      "x": 475,
+      "y": 458,
+    },
+    {
+      "x": 600,
+      "y": 458,
+    },
+  ],
+  "f4": [
+    {
+      "x": 450,
+      "y": 483,
+    },
+    {
+      "x": 450,
+      "y": 576,
+    },
+    {
+      "x": 600,
+      "y": 576,
+    },
+  ],
+  "f5": [
+    {
+      "x": 450,
+      "y": 483,
+    },
+    {
+      "x": 450,
+      "y": 694,
+    },
+    {
+      "x": 600,
+      "y": 694,
+    },
+  ],
+  "f6": [
+    {
+      "x": 450,
+      "y": 483,
+    },
+    {
+      "x": 450,
+      "y": 812,
+    },
+    {
+      "x": 600,
+      "y": 812,
+    },
+  ],
+  "f7": [
+    {
+      "x": 700,
+      "y": 458,
+    },
+    {
+      "x": 850,
+      "y": 458,
+    },
+    {
+      "x": 850,
+      "y": 323,
+    },
+  ],
+  "f8": [
+    {
+      "x": 700,
+      "y": 576,
+    },
+    {
+      "x": 850,
+      "y": 576,
+    },
+    {
+      "x": 850,
+      "y": 323,
+    },
+  ],
+  "f9": [
+    {
+      "x": 700,
+      "y": 694,
+    },
+    {
+      "x": 850,
+      "y": 694,
+    },
+    {
+      "x": 850,
+      "y": 323,
+    },
+  ],
+}
+`;
+
+exports[`Phase 3: Coordinate Calculation (Snapshot-based) > should calculate correct coordinates for simple-3-lane.bpmn 1`] = `
+{
+  "end1": {
+    "height": 36,
+    "width": 36,
+    "x": 1032,
+    "y": 287,
+  },
+  "start1": {
+    "height": 36,
+    "width": 36,
+    "x": 232,
+    "y": 287,
+  },
+  "task1": {
+    "height": 80,
+    "width": 100,
+    "x": 600,
+    "y": 265,
+  },
+  "task2": {
+    "height": 80,
+    "width": 100,
+    "x": 600,
+    "y": 415,
+  },
+  "task3": {
+    "height": 80,
+    "width": 100,
+    "x": 600,
+    "y": 565,
+  },
+  "xor1": {
+    "height": 50,
+    "width": 50,
+    "x": 425,
+    "y": 280,
+  },
+}
+`;
