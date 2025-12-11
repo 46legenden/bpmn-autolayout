@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BPMN Viewer - 4 Outputs (Layouted)</title>
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/bpmn-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/diagram-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/bpmn-font/css/bpmn.css">
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #canvas { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="canvas"></div>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-viewer.development.js"></script>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    fetch('output-4outputs-layouted.bpmn?t=' + Date.now())
+      .then(r => r.text())
+      .then(xml => viewer.importXML(xml))
+      .then(() => viewer.get('canvas').zoom('fit-viewport'))
+      .catch(console.error);
+  </script>
+</body>
+</html>

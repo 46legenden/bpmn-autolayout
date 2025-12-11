@@ -21,27 +21,51 @@
  * @returns {Object} - Waypoint position { lane, layer, row }
  */
 export function calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, directions) {
-  const waypoint = {};
-
   // Determine which coordinates to take from source vs target
   const exitIsAlongLane = (exitSide === directions.alongLane || exitSide === directions.oppAlongLane);
   const entryIsAlongLane = (entrySide === directions.alongLane || entrySide === directions.oppAlongLane);
 
-  if (exitIsAlongLane) {
-    // Exit along lane (right/left): Y stays from source
-    waypoint.lane = sourcePos.lane;
-    waypoint.row = sourcePos.row;
-  } else {
-    // Exit cross lane (down/up): X stays from source
-    waypoint.layer = sourcePos.layer;
+  // Check if waypoint is needed
+  if (exitIsAlongLane && entryIsAlongLane) {
+    // Both along lane (horizontal): check if same row
+    if (sourcePos.lane === targetPos.lane && sourcePos.row === targetPos.row) {
+      // Same lane and row → no waypoint needed (straight line)
+      return null;
+    }
+  } else if (!exitIsAlongLane && !entryIsAlongLane) {
+    // Both cross lane (vertical): check if same layer
+    if (sourcePos.layer === targetPos.layer) {
+      // Same layer → no waypoint needed (straight line)
+      return null;
+    }
   }
 
+  // Waypoint is needed - calculate position
+  const waypoint = {
+    lane: null,
+    layer: null,
+    row: null
+  };
+
+  if (exitIsAlongLane) {
+    // Exit along lane (right/left): lane and row stay from source, layer from target
+    waypoint.lane = sourcePos.lane;
+    waypoint.row = sourcePos.row;
+    waypoint.layer = targetPos.layer;
+  } else {
+    // Exit cross lane (down/up): layer stays from source, lane and row from target
+    waypoint.layer = sourcePos.layer;
+    waypoint.lane = targetPos.lane;
+    waypoint.row = targetPos.row;
+  }
+
+  // Override with entry side if different
   if (entryIsAlongLane) {
-    // Entry along lane (left/right): Y stays from target
+    // Entry along lane: use target's lane and row
     waypoint.lane = targetPos.lane;
     waypoint.row = targetPos.row;
   } else {
-    // Entry cross lane (up/down): X stays from target
+    // Entry cross lane: use target's layer
     waypoint.layer = targetPos.layer;
   }
 

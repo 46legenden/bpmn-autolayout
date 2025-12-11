@@ -8,12 +8,23 @@
  * - Generating BPMN DI (Diagram Interchange) XML
  */
 
-// Layout constants
-const LAYER_SPACING = 150;  // Horizontal distance between layers
-const LANE_SPACING = 100;   // Vertical distance between lanes  
-const ROW_SPACING = 80;     // Vertical offset for multiple rows
+// Layout constants (from old implementation)
+const COLUMN_WIDTH = 200;
+const LANE_BASE_HEIGHT = 150;
+const LANE_ROW_HEIGHT = 120;
+const LANE_TOP_OFFSET = 80;
+const POOL_X_OFFSET = 150;     // Left offset for pool
+
+// Element size constants (BPMN standard sizes)
 const ELEMENT_WIDTH = 100;
 const ELEMENT_HEIGHT = 80;
+const GATEWAY_SIZE = 50;
+const START_END_SIZE = 36;     // Events are circular
+
+// Vertical orientation constants (when needed)
+const LANE_BASE_WIDTH = 150;
+const LANE_ROW_WIDTH = 120;
+const LANE_LEFT_OFFSET = 80;
 
 /**
  * Normalize rows within each lane (convert negative rows to positive indices)
@@ -53,36 +64,69 @@ export function normalizeRows(positions, lanes) {
  * Calculate pixel coordinates for elements
  * @param {Map} positions - Map of elementId → {lane, layer, row}
  * @param {Map} lanes - Lane map
+ * @param {Map} laneBounds - Lane bounds from calculateLaneBounds
  * @param {Object} directions - Direction mappings from Phase 2
  * @returns {Map} - Map of elementId → {x, y, width, height}
  */
-export function calculateElementCoordinates(positions, lanes, directions) {
+export function calculateElementCoordinates(elements, positions, laneBounds, directions) {
   const coordinates = new Map();
+  // Extract lanes from laneBounds keys
+  const lanes = new Map(Array.from(laneBounds.keys()).map(laneId => [laneId, {}]));
   const normalized = normalizeRows(positions, lanes);
+  const isHorizontal = directions.alongLane === 'right';
   
-  // Get lane indices
-  const laneIds = Array.from(lanes.keys());
-  
-  for (const [elementId, pos] of normalized) {
-    const laneIndex = laneIds.indexOf(pos.lane);
+  for (const [elementId, element] of elements) {
+    const pos = normalized.get(elementId);
+    if (!pos) continue;
+    
+    const laneBound = laneBounds.get(pos.lane);
+    if (!laneBound) continue;
+    
+    // Element dimensions based on BPMN type (from old implementation)
+    let width, height;
+    
+    if (element.type === 'startEvent' || element.type === 'endEvent' ||
+        element.type === 'intermediateThrowEvent' || element.type === 'intermediateCatchEvent') {
+      width = height = START_END_SIZE;
+    } else if (element.type && element.type.includes('Gateway')) {
+      width = height = GATEWAY_SIZE;
+    } else {
+      width = ELEMENT_WIDTH;
+      height = ELEMENT_HEIGHT;
+    }
     
     let x, y;
     
-    if (directions.laneOrientation === 'horizontal') {
-      // Horizontal: lanes go down, process goes right
-      x = pos.layer * LAYER_SPACING;
-      y = laneIndex * LANE_SPACING + pos.normalizedRow * ROW_SPACING;
+    if (isHorizontal) {
+      // Horizontal orientation: lanes stack vertically, process flows horizontally
+      // X: Based on layer (column), centered in column
+      const centerX = POOL_X_OFFSET + pos.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+      x = centerX - width / 2;
+      
+      // Y: Based on row within lane, with even padding
+      const referenceHeight = ELEMENT_HEIGHT;  // Use standard element height for spacing
+      const paddingPerGap = (laneBound.height - laneBound.maxRows * referenceHeight) / (laneBound.maxRows + 1);
+      const rowCenterY = laneBound.y + paddingPerGap + (pos.normalizedRow * (referenceHeight + paddingPerGap)) + referenceHeight / 2;
+      y = rowCenterY - height / 2;
+      
     } else {
-      // Vertical: lanes go right, process goes down
-      x = laneIndex * LANE_SPACING + pos.normalizedRow * ROW_SPACING;
-      y = pos.layer * LAYER_SPACING;
+      // Vertical orientation: lanes stack horizontally, process flows vertically
+      // X: Based on row within lane, with even padding
+      const referenceWidth = ELEMENT_WIDTH;  // Use standard element width for spacing
+      const paddingPerGap = (laneBound.width - laneBound.maxRows * referenceWidth) / (laneBound.maxRows + 1);
+      const rowCenterX = laneBound.x + paddingPerGap + (pos.normalizedRow * (referenceWidth + paddingPerGap)) + referenceWidth / 2;
+      x = rowCenterX - width / 2;
+      
+      // Y: Based on layer (row in vertical), centered in row
+      const centerY = POOL_X_OFFSET + pos.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+      y = centerY - height / 2;
     }
     
     coordinates.set(elementId, {
       x,
       y,
-      width: ELEMENT_WIDTH,
-      height: ELEMENT_HEIGHT
+      width,
+      height
     });
   }
   
@@ -96,18 +140,39 @@ export function calculateElementCoordinates(positions, lanes, directions) {
  * @param {Object} directions - Direction mappings
  * @returns {Object} - {x, y}
  */
-export function calculateWaypointCoordinate(waypoint, lanes, directions) {
-  const laneIds = Array.from(lanes.keys());
-  const laneIndex = laneIds.indexOf(waypoint.lane);
+export function calculateWaypointCoordinate(waypoint, lanes, directions, laneBounds) {
+  const isHorizontal = directions.alongLane === 'right';
   
   let x, y;
   
-  if (directions.laneOrientation === 'horizontal') {
-    x = waypoint.layer * LAYER_SPACING;
-    y = laneIndex * LANE_SPACING + waypoint.row * ROW_SPACING;
+  if (isHorizontal) {
+    // Horizontal orientation
+    // X based on layer (column center)
+    x = POOL_X_OFFSET + waypoint.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+    
+    // Y based on lane + row
+    const laneBound = laneBounds.get(waypoint.lane);
+    if (laneBound) {
+      // Use same logic as element positioning
+      const referenceHeight = ELEMENT_HEIGHT;
+      const paddingPerGap = (laneBound.height - laneBound.maxRows * referenceHeight) / (laneBound.maxRows + 1);
+      y = laneBound.y + paddingPerGap + (waypoint.row * (referenceHeight + paddingPerGap)) + referenceHeight / 2;
+    } else {
+      // Fallback if lane bound not found
+      y = LANE_TOP_OFFSET + waypoint.row * LANE_ROW_HEIGHT;
+    }
   } else {
-    x = laneIndex * LANE_SPACING + waypoint.row * ROW_SPACING;
-    y = waypoint.layer * LAYER_SPACING;
+    // Vertical orientation
+    const laneBound = laneBounds.get(waypoint.lane);
+    if (laneBound) {
+      const referenceWidth = ELEMENT_WIDTH;
+      const paddingPerGap = (laneBound.width - laneBound.maxRows * referenceWidth) / (laneBound.maxRows + 1);
+      x = laneBound.x + paddingPerGap + (waypoint.row * (referenceWidth + paddingPerGap)) + referenceWidth / 2;
+    } else {
+      x = LANE_LEFT_OFFSET + waypoint.row * LANE_ROW_WIDTH;
+    }
+    
+    y = POOL_X_OFFSET + waypoint.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
   }
   
   return { x, y };
@@ -158,7 +223,7 @@ export function calculateConnectionPoint(coord, side) {
  * @param {Object} directions - Direction mappings
  * @returns {Array} - Array of {x, y} waypoints
  */
-export function calculateFlowWaypoints(flowInfo, coordinates, lanes, directions) {
+export function calculateFlowWaypoints(flowInfo, coordinates, lanes, directions, laneBounds) {
   const pixelWaypoints = [];
   
   // Start point
@@ -167,7 +232,7 @@ export function calculateFlowWaypoints(flowInfo, coordinates, lanes, directions)
   
   // Waypoints
   for (const waypoint of flowInfo.waypoints) {
-    const wpCoord = calculateWaypointCoordinate(waypoint, lanes, directions);
+    const wpCoord = calculateWaypointCoordinate(waypoint, lanes, directions, laneBounds);
     pixelWaypoints.push(wpCoord);
   }
   
@@ -225,7 +290,7 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   waypoints.push(exitPoint);
   
   // Step 2: Move to "between-rows" zone (pixel offset, not row + 0.5)
-  const BACK_BAND_OFFSET = ROW_SPACING / 2; // Between rows
+  const BACK_BAND_OFFSET = LANE_ROW_HEIGHT / 2; // Between rows
   const betweenRowsPoint = {
     x: exitPoint.x,
     y: exitPoint.y + BACK_BAND_OFFSET
@@ -233,7 +298,7 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   waypoints.push(betweenRowsPoint);
   
   // Step 3: Move LEFT in "between-layers" zone
-  const LAYER_OFFSET = LAYER_SPACING / 2; // Between layers
+  const LAYER_OFFSET = COLUMN_WIDTH / 2; // Between layers
   let targetX;
   
   if (targetEntrySide === directions.oppAlongLane) {
@@ -277,11 +342,73 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
  * @param {Object} directions - Direction mappings
  * @returns {Object} - {coordinates, flowWaypoints}
  */
-export function phase3(phase2Result, lanes, directions) {
+/**
+ * Calculate lane bounds (x, y, width, height) for all lanes
+ * @param {Map} lanes - Lane map
+ * @param {Map} positions - Element positions
+ * @param {Object} directions - Direction mappings
+ * @returns {Map} - Map of laneId → {x, y, width, height, maxRows}
+ */
+export function calculateLaneBounds(lanes, positions, directions) {
+  const isHorizontal = directions.alongLane === 'right';
+  
+  // Normalize rows first
+  const normalized = normalizeRows(positions, lanes);
+  
+  // Find max rows per lane
+  const laneMaxRows = new Map();
+  for (const [elementId, pos] of normalized) {
+    const currentMax = laneMaxRows.get(pos.lane) || 0;
+    laneMaxRows.set(pos.lane, Math.max(currentMax, pos.normalizedRow + 1));
+  }
+  
+  const laneBounds = new Map();
+  
+  if (isHorizontal) {
+    // Horizontal orientation: lanes stack vertically
+    let currentY = LANE_TOP_OFFSET;
+    
+    for (const [laneId, lane] of lanes) {
+      const maxRows = laneMaxRows.get(laneId) || 1;
+      const laneHeight = LANE_BASE_HEIGHT + (maxRows - 1) * LANE_ROW_HEIGHT;
+      
+      laneBounds.set(laneId, {
+        y: currentY,
+        height: laneHeight,
+        maxRows: maxRows
+      });
+      
+      currentY += laneHeight;
+    }
+  } else {
+    // Vertical orientation: lanes stack horizontally
+    let currentX = LANE_LEFT_OFFSET;
+    
+    for (const [laneId, lane] of lanes) {
+      const maxRows = laneMaxRows.get(laneId) || 1;
+      const laneWidth = LANE_BASE_WIDTH + (maxRows - 1) * LANE_ROW_WIDTH;
+      
+      laneBounds.set(laneId, {
+        x: currentX,
+        width: laneWidth,
+        maxRows: maxRows
+      });
+      
+      currentX += laneWidth;
+    }
+  }
+  
+  return laneBounds;
+}
+
+export function phase3(phase2Result, elements, lanes, directions) {
   const { positions, flowInfos } = phase2Result;
   
-  // Calculate element coordinates
-  const coordinates = calculateElementCoordinates(positions, lanes, directions);
+  // Calculate lane bounds first (needed for element positioning)
+  const laneBounds = calculateLaneBounds(lanes, positions, directions);
+  
+  // Calculate element coordinates (positioned within lanes)
+  const coordinates = calculateElementCoordinates(elements, positions, laneBounds, directions);
   
   // Calculate flow waypoints
   const flowWaypoints = new Map();
@@ -293,14 +420,15 @@ export function phase3(phase2Result, lanes, directions) {
       flowWaypoints.set(flowId, waypoints);
     } else {
       // Normal flows: convert logical waypoints to pixel
-      const waypoints = calculateFlowWaypoints(flowInfo, coordinates, lanes, directions);
+      const waypoints = calculateFlowWaypoints(flowInfo, coordinates, lanes, directions, laneBounds);
       flowWaypoints.set(flowId, waypoints);
     }
   }
   
   return {
     coordinates,
-    flowWaypoints
+    flowWaypoints,
+    laneBounds
   };
 }
 
@@ -310,15 +438,216 @@ export function phase3(phase2Result, lanes, directions) {
  * @param {Map} coordinates - Element coordinates
  * @returns {string} - BPMN DI XML string
  */
-export function generateElementDI(elements, coordinates) {
+/**
+ * Calculate pool bounds that encompass all lanes
+ * @param {Map} laneBounds - Lane bounds
+ * @param {Object} directions - Direction mappings
+ * @returns {Object} - {x, y, width, height}
+ */
+export function calculatePoolBounds(laneBounds, coordinates, directions) {
+  const isHorizontal = directions.alongLane === 'right';
+  
+  if (laneBounds.size === 0) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+  
+  if (isHorizontal) {
+    // Calculate width based on rightmost element (from old implementation)
+    const maxX = Math.max(...Array.from(coordinates.values()).map(p => p.x + p.width));
+    const poolWidth = maxX - POOL_X_OFFSET + 100;
+    
+    // Calculate height as sum of all lane heights
+    let poolHeight = 0;
+    for (const bounds of laneBounds.values()) {
+      poolHeight += bounds.height;
+    }
+    
+    return {
+      x: POOL_X_OFFSET,
+      y: LANE_TOP_OFFSET,
+      width: poolWidth,
+      height: poolHeight
+    };
+  } else {
+    // Vertical orientation (similar logic, swapped dimensions)
+    const maxY = Math.max(...Array.from(coordinates.values()).map(p => p.y + p.height));
+    const poolHeight = maxY - POOL_X_OFFSET + 100;
+    
+    let poolWidth = 0;
+    for (const bounds of laneBounds.values()) {
+      poolWidth += bounds.width;
+    }
+    
+    return {
+      x: LANE_LEFT_OFFSET,
+      y: POOL_X_OFFSET,
+      width: poolWidth,
+      height: poolHeight
+    };
+  }
+}
+
+/**
+ * Generate BPMN DI for pool shape
+ * @param {string} poolId - Pool/Participant ID from BPMN XML
+ * @param {Object} poolBounds - Pool bounds
+ * @param {Object} directions - Direction mappings
+ * @returns {string} - Pool DI XML
+ */
+export function generatePoolDI(poolId, poolBounds, directions) {
+  const isHorizontal = directions.alongLane === 'right';
+  
+  return `      <bpmndi:BPMNShape id="${poolId}_di" bpmnElement="${poolId}" isHorizontal="${isHorizontal}">
+        <dc:Bounds x="${poolBounds.x}" y="${poolBounds.y}" width="${poolBounds.width}" height="${poolBounds.height}" />
+      </bpmndi:BPMNShape>`;
+}
+
+/**
+ * Generate BPMN DI for lane shapes
+ * @param {Map} lanes - Lane map
+ * @param {Map} laneBounds - Lane bounds
+ * @param {Object} poolBounds - Pool bounds (for width calculation)
+ * @param {Object} directions - Direction mappings
+ * @returns {string} - Lane DI XML
+ */
+export function generateLaneDI(lanes, laneBounds, poolBounds, directions) {
+  const shapes = [];
+  const isHorizontal = directions.alongLane === 'right';
+  
+  if (isHorizontal) {
+    // Horizontal orientation (from old implementation)
+    let laneY = LANE_TOP_OFFSET;
+    
+    for (const [laneId, lane] of lanes) {
+      const bounds = laneBounds.get(laneId);
+      if (!bounds) continue;
+      
+      shapes.push(
+        `      <bpmndi:BPMNShape id="${laneId}_di" bpmnElement="${laneId}" isHorizontal="true">`,
+        `        <dc:Bounds x="${POOL_X_OFFSET + 30}" y="${laneY}" width="${poolBounds.width - 30}" height="${bounds.height}" />`,
+        `      </bpmndi:BPMNShape>`
+      );
+      
+      laneY += bounds.height;
+    }
+  } else {
+    // Vertical orientation
+    let laneX = LANE_LEFT_OFFSET;
+    
+    for (const [laneId, lane] of lanes) {
+      const bounds = laneBounds.get(laneId);
+      if (!bounds) continue;
+      
+      shapes.push(
+        `      <bpmndi:BPMNShape id="${laneId}_di" bpmnElement="${laneId}" isHorizontal="false">`,
+        `        <dc:Bounds x="${laneX}" y="${POOL_X_OFFSET + 30}" width="${bounds.width}" height="${poolBounds.height - 30}" />`,
+        `      </bpmndi:BPMNShape>`
+      );
+      
+      laneX += bounds.width;
+    }
+  }
+  
+  return shapes.join('\n');
+}
+
+/**
+ * Calculate element label position
+ * @param {string} elementId - Element ID
+ * @param {Map} coordinates - Element coordinates
+ * @param {Map} flowWaypoints - Flow waypoints
+ * @param {Map} flows - Flow map
+ * @param {Map} elements - Element map (to check element type)
+ * @returns {Object} - {x, y, width, height}
+ */
+function calculateElementLabelPosition(elementId, coordinates, flowWaypoints, flows, elements) {
+  const pos = coordinates.get(elementId);
+  const element = elements.get(elementId);
+  
+  // Special handling for gateways: always top-left
+  if (element && element.type && element.type.includes('Gateway')) {
+    const labelWidth = 80;  // Approximate width for gateway labels
+    const labelHeight = 20;
+    const horizontalGap = 2;  // Small gap from gateway center (closer)
+    const verticalGap = 10;   // Larger gap from gateway center (further up)
+    
+    // Gateway center
+    const gatewayCenterX = pos.x + pos.width / 2;
+    const gatewayCenterY = pos.y + pos.height / 2;
+    
+    // Position: right edge of label box close to gateway center horizontally
+    const labelRightEdge = gatewayCenterX - horizontalGap;
+    const labelX = labelRightEdge - labelWidth;
+    
+    // Position: bottom edge of label box further from gateway center vertically
+    const labelBottomEdge = gatewayCenterY - verticalGap;
+    const labelY = labelBottomEdge - labelHeight;
+    
+    return {
+      x: labelX,
+      y: labelY,
+      width: labelWidth,
+      height: labelHeight
+    };
+  }
+  
+  // For non-gateway elements: check if incoming flow from below
+  const incomingFlows = [];
+  for (const [flowId, flow] of flows) {
+    if (flow.targetRef === elementId) {
+      incomingFlows.push(flowId);
+    }
+  }
+  
+  const hasIncomingFromBelow = incomingFlows.some(flowId => {
+    const waypoints = flowWaypoints.get(flowId);
+    if (!waypoints || waypoints.length < 2) return false;
+    
+    // Get the second-to-last waypoint (approach direction)
+    const approachPoint = waypoints[waypoints.length - 2];
+    const targetCenter = {
+      x: pos.x + pos.width / 2,
+      y: pos.y + pos.height / 2
+    };
+    
+    // Check if approaching from BELOW (approachPoint.y > targetCenter.y)
+    return approachPoint.y > targetCenter.y;
+  });
+  
+  if (hasIncomingFromBelow) {
+    // Arrow from below → Label ABOVE to avoid collision
+    return {
+      x: pos.x - 10,
+      y: pos.y - 25,
+      width: pos.width + 20,
+      height: 20
+    };
+  } else {
+    // Label BELOW (default)
+    return {
+      x: pos.x - 10,
+      y: pos.y + pos.height + 5,
+      width: pos.width + 20,
+      height: 20
+    };
+  }
+}
+
+export function generateElementDI(elements, coordinates, flowWaypoints, flows) {
   let xml = '';
   
   for (const [elementId, element] of elements) {
     const coord = coordinates.get(elementId);
     if (!coord) continue;
     
+    // Calculate label position
+    const labelBounds = calculateElementLabelPosition(elementId, coordinates, flowWaypoints, flows, elements);
+    
     xml += `    <bpmndi:BPMNShape bpmnElement="${elementId}">\n`;
     xml += `      <dc:Bounds x="${coord.x}" y="${coord.y}" width="${coord.width}" height="${coord.height}"/>\n`;
+    xml += `      <bpmndi:BPMNLabel>\n`;
+    xml += `        <dc:Bounds x="${labelBounds.x}" y="${labelBounds.y}" width="${labelBounds.width}" height="${labelBounds.height}" />\n`;
+    xml += `      </bpmndi:BPMNLabel>\n`;
     xml += `    </bpmndi:BPMNShape>\n`;
   }
   
@@ -326,12 +655,134 @@ export function generateElementDI(elements, coordinates) {
 }
 
 /**
+ * Calculate edge label position based on waypoints
+ * @param {Object} flow - Flow object
+ * @param {Array} waypoints - Flow waypoints
+ * @param {Map} elements - Element map
+ * @param {Map} coordinates - Element coordinates
+ * @param {Map} flows - All flows (to check gateway outputs)
+ * @returns {Object} - {x, y, width, height}
+ */
+function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows) {
+  const sourceEl = elements.get(flow.sourceRef);
+  const targetEl = elements.get(flow.targetRef);
+  
+  // Check if source is a gateway (output flow from gateway)
+  const isGatewaySource = sourceEl && sourceEl.type && sourceEl.type.includes('Gateway');
+  
+  if (!isGatewaySource || !waypoints || waypoints.length < 2) {
+    // Not a gateway flow or no waypoints → use midpoint (standard)
+    const sourcePos = coordinates.get(flow.sourceRef);
+    const targetPos = coordinates.get(flow.targetRef);
+    if (!sourcePos || !targetPos) {
+      return { x: 0, y: 0, width: 30, height: 20 };
+    }
+    return {
+      x: (sourcePos.x + targetPos.x) / 2,
+      y: (sourcePos.y + targetPos.y) / 2,
+      width: 30,
+      height: 20
+    };
+  }
+  
+  // Gateway OUTPUT → position label based on ACTUAL waypoint direction
+  const wp1 = waypoints[0]; // First waypoint (exit from gateway)
+  const wp2 = waypoints[1]; // Second waypoint (direction indicator)
+  
+  // Determine direction from first two waypoints
+  const dx = wp2.x - wp1.x;
+  const dy = wp2.y - wp1.y;
+  
+  // Determine primary direction
+  const isHorizontal = Math.abs(dx) > Math.abs(dy);
+  
+  if (isHorizontal) {
+    // Horizontal flow (right or left)
+    const goingRight = dx > 0;
+    
+    if (goingRight) {
+      // Going RIGHT → Label ABOVE arrow, right of gateway
+      return {
+        x: wp1.x + 5,
+        y: wp1.y - 25,
+        width: 50,
+        height: 20
+      };
+    } else {
+      // Going LEFT → Label ABOVE arrow, left of gateway
+      return {
+        x: wp1.x - 55,
+        y: wp1.y - 25,
+        width: 50,
+        height: 20
+      };
+    }
+  } else {
+    // Vertical flow (down or up)
+    const goingDown = dy > 0;
+    
+    if (goingDown) {
+      // Going DOWN → Check if multiple vertical outputs from same gateway
+      // Count gateway outputs that go down
+      const gatewayOutputs = [];
+      for (const [fId, f] of flows) {
+        if (f.sourceRef === flow.sourceRef) {
+          gatewayOutputs.push(fId);
+        }
+      }
+      
+      const verticalOutputs = gatewayOutputs.filter(fId => {
+        const f = flows.get(fId);
+        const fWaypoints = waypoints; // TODO: get actual waypoints for fId
+        // For now, assume if waypoints.length >= 3, it's vertical then horizontal
+        return waypoints.length >= 3;
+      });
+      
+      const hasMultipleVerticalOutputs = gatewayOutputs.length > 1;
+      
+      if (hasMultipleVerticalOutputs && waypoints.length >= 3) {
+        // Multiple vertical outputs → Use HORIZONTAL segment for label
+        // Position label on the horizontal segment (before target)
+        const secondLastWp = waypoints[waypoints.length - 2];
+        const gatewayCoord = coordinates.get(flow.sourceRef);
+        const gatewayWidthOffset = gatewayCoord ? gatewayCoord.width / 2 : 0;
+        
+        return {
+          x: wp1.x + gatewayWidthOffset + 5,  // Same X for all labels!
+          y: secondLastWp.y - 25,              // Different Y (based on waypoint)
+          width: 50,
+          height: 20
+        };
+      } else {
+        // Single vertical flow → Label RIGHT of arrow, below gateway
+        return {
+          x: wp1.x + 5,
+          y: wp1.y + 5,
+          width: 50,
+          height: 20
+        };
+      }
+    } else {
+      // Going UP → Label RIGHT of arrow
+      return {
+        x: wp1.x + 5,
+        y: wp1.y - 25,
+        width: 50,
+        height: 20
+      };
+    }
+  }
+}
+
+/**
  * Generate BPMN DI XML for flows
  * @param {Map} flows - Flow map from Phase 1
  * @param {Map} flowWaypoints - Flow waypoints (pixel coordinates)
+ * @param {Map} elements - Element map
+ * @param {Map} coordinates - Element coordinates
  * @returns {string} - BPMN DI XML string
  */
-export function generateFlowDI(flows, flowWaypoints) {
+export function generateFlowDI(flows, flowWaypoints, elements, coordinates) {
   let xml = '';
   
   for (const [flowId, flow] of flows) {
@@ -342,6 +793,14 @@ export function generateFlowDI(flows, flowWaypoints) {
     
     for (const waypoint of waypoints) {
       xml += `      <di:waypoint x="${waypoint.x}" y="${waypoint.y}"/>\n`;
+    }
+    
+    // Add label if flow has a name
+    if (flow.name) {
+      const labelBounds = calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows);
+      xml += `      <bpmndi:BPMNLabel>\n`;
+      xml += `        <dc:Bounds x="${labelBounds.x}" y="${labelBounds.y}" width="${labelBounds.width}" height="${labelBounds.height}" />\n`;
+      xml += `      </bpmndi:BPMNLabel>\n`;
     }
     
     xml += `    </bpmndi:BPMNEdge>\n`;
@@ -355,14 +814,25 @@ export function generateFlowDI(flows, flowWaypoints) {
  * @param {string} bpmnXml - Original BPMN XML
  * @param {Map} elements - Element map
  * @param {Map} flows - Flow map
+ * @param {Map} lanes - Lane map
  * @param {Map} coordinates - Element coordinates
  * @param {Map} flowWaypoints - Flow waypoints
+ * @param {Map} laneBounds - Lane bounds
  * @returns {string} - BPMN XML with DI
  */
-export function injectBPMNDI(bpmnXml, elements, flows, coordinates, flowWaypoints) {
+export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions) {
+  // Extract pool ID from BPMN XML (participant element)
+  const poolMatch = bpmnXml.match(/<bpmn:participant\s+id="([^"]+)"/);  
+  const poolId = poolMatch ? poolMatch[1] : null;
+  
+  // Calculate pool bounds (needs coordinates for width calculation)
+  const poolBounds = calculatePoolBounds(laneBounds, coordinates, directions);
+  
   // Generate DI XML
-  const elementDI = generateElementDI(elements, coordinates);
-  const flowDI = generateFlowDI(flows, flowWaypoints);
+  const poolDI = poolId ? generatePoolDI(poolId, poolBounds, directions) : '';
+  const laneDI = generateLaneDI(lanes, laneBounds, poolBounds, directions);
+  const elementDI = generateElementDI(elements, coordinates, flowWaypoints, flows);
+  const flowDI = generateFlowDI(flows, flowWaypoints, elements, coordinates);
   
   // Check if DI already exists
   if (bpmnXml.includes('<bpmndi:BPMNDiagram')) {
@@ -372,6 +842,7 @@ export function injectBPMNDI(bpmnXml, elements, flows, coordinates, flowWaypoint
     
     const newDI = `  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
+${poolDI ? poolDI + '\n' : ''}${laneDI}
 ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>`;
     
@@ -382,6 +853,7 @@ ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
     
     const newDI = `  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
+${poolDI ? poolDI + '\n' : ''}${laneDI}
 ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 `;

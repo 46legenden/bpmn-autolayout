@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BPMN Viewer</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+    }
+    #canvas {
+      border: 1px solid #ccc;
+      height: 80vh;
+    }
+    #controls {
+      margin-bottom: 20px;
+    }
+    select, button {
+      padding: 8px 16px;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    h1 {
+      margin: 0 0 20px 0;
+    }
+  </style>
+  <script src="https://unpkg.com/bpmn-js@17.2.1/dist/bpmn-viewer.development.js"></script>
+</head>
+<body>
+  <h1>BPMN Auto-Layout Viewer</h1>
+  
+  <div id="controls">
+    <select id="fileSelect">
+      <option value="">Select a file...</option>
+    </select>
+    <button onclick="loadSelected()">Load</button>
+    <button onclick="zoomReset()">Reset Zoom</button>
+  </div>
+  
+  <div id="canvas"></div>
+
+  <script>
+    const viewer = new BpmnJS({
+      container: '#canvas'
+    });
+
+    // Load available files
+    fetch('/api/files')
+      .then(r => r.json())
+      .then(files => {
+        const select = document.getElementById('fileSelect');
+        files.forEach(file => {
+          const option = document.createElement('option');
+          option.value = file;
+          option.textContent = file;
+          select.appendChild(option);
+        });
+      });
+
+    async function loadSelected() {
+      const file = document.getElementById('fileSelect').value;
+      if (!file) return;
+      
+      const xml = await fetch(`/api/bpmn/${encodeURIComponent(file)}`).then(r => r.text());
+      
+      try {
+        await viewer.importXML(xml);
+        const canvas = viewer.get('canvas');
+        canvas.zoom('fit-viewport');
+        console.log('BPMN loaded successfully!');
+      } catch (err) {
+        console.error('Error loading BPMN:', err);
+        alert('Error loading BPMN: ' + err.message);
+      }
+    }
+
+    function zoomReset() {
+      const canvas = viewer.get('canvas');
+      canvas.zoom('fit-viewport');
+    }
+  </script>
+</body>
+</html>

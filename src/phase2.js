@@ -12,6 +12,31 @@
 import { calculateWaypoint } from './waypoint-helper.js';
 
 /**
+ * Get lane index (position in lane list)
+ * @param {string} laneId - Lane ID
+ * @param {Map} lanes - Lane map
+ * @returns {number} - Lane index (0 = first/top)
+ */
+function getLaneIndex(laneId, lanes) {
+  const laneIds = Array.from(lanes.keys());
+  return laneIds.indexOf(laneId);
+}
+
+/**
+ * Calculate unified vertical index (vIndex) for routing
+ * Combines lane and row into single vertical position
+ * @param {string} lane - Lane ID
+ * @param {number} row - Row number
+ * @param {Map} lanes - Lane map
+ * @returns {number} - Vertical index (higher = lower position)
+ */
+function getVIndex(lane, row, lanes) {
+  const LANE_STEP = 100; // Large step to avoid row collisions
+  const laneIndex = getLaneIndex(lane, lanes);
+  return laneIndex * LANE_STEP + row;
+}
+
+/**
  * Apply configuration and define abstract directions
  * @param {Object} config - { laneOrientation: "horizontal" | "vertical" }
  * @returns {Object} - Direction mappings
@@ -115,16 +140,7 @@ export function assignGatewayLanes(elements, flows, lanes) {
   return elementLanes;
 }
 
-/**
- * Get lane index (position in lane list)
- * @param {string} laneId - Lane ID
- * @param {Map} lanes - Lane map
- * @returns {number} - Lane index (0-based)
- */
-export function getLaneIndex(laneId, lanes) {
-  const laneIds = Array.from(lanes.keys());
-  return laneIds.indexOf(laneId);
-}
+// getLaneIndex is already defined at the top of this file
 
 /**
  * Check if flow is cross-lane
@@ -169,10 +185,23 @@ export function getCrossLaneDirection(flow, elementLanes, lanes, directions) {
 export function assignSameLanePosition(sourceId, targetId, positions, elementLanes) {
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
+  
+  // If target already has a position, update layer to max of current and new
+  // This ensures elements with multiple inputs are positioned after ALL inputs
+  const existingPos = positions.get(targetId);
+  const newLayer = sourcePos.layer + 1;
+  
+  if (existingPos) {
+    // Update to maximum layer
+    if (newLayer > existingPos.layer) {
+      existingPos.layer = newLayer;
+    }
+    return existingPos;
+  }
 
   const targetPos = {
     lane,
-    layer: sourcePos.layer + 1,
+    layer: newLayer,
     row: sourcePos.row
   };
   
@@ -264,6 +293,12 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
 export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes) {
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
+  
+  // If target already has a position, keep it (first input wins for same-layer cross-lane)
+  const existingPos = positions.get(targetId);
+  if (existingPos) {
+    return existingPos;
+  }
 
   const targetPos = {
     lane,
@@ -291,17 +326,36 @@ export function createCrossLaneFreeFlowInfo(flowId, sourceId, targetId, position
   const sourcePos = positions.get(sourceId);
   const targetPos = positions.get(targetId);
 
-  const crossDirection = getCrossLaneDirection(
-    { sourceRef: sourceId, targetRef: targetId },
-    elementLanes,
-    lanes,
-    directions
-  );
+  // Calculate vertical relation using vIndex
+  const sourceV = getVIndex(sourcePos.lane, sourcePos.row, lanes);
+  const targetV = getVIndex(targetPos.lane, targetPos.row, lanes);
+  const dv = targetV - sourceV;
 
-  const crossSide = crossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
-  const oppCrossSide = crossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
+  let exitSide, entrySide;
 
-  // Same layer: straight line (crossLane → oppCrossLane)
+  if (sourcePos.layer === targetPos.layer) {
+    // FALL 1: Same layer → pure vertical flow
+    if (dv > 0) {
+      // Target below
+      exitSide = directions.crossLane;      // down
+      entrySide = directions.oppCrossLane;  // up
+    } else {
+      // Target above
+      exitSide = directions.oppCrossLane;   // up
+      entrySide = directions.crossLane;     // down
+    }
+  } else {
+    // FALL 2/3: Different layer
+    // This function is used for "free path" which means same layer
+    // For different layers, use createCrossLaneBlockedFlowInfo
+    // But to be safe, handle it:
+    exitSide = directions.alongLane;        // right
+    entrySide = directions.oppAlongLane;    // left
+  }
+  
+  // Calculate waypoint for direction change
+  const waypoint = calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, directions);
+
   return {
     flowId,
     sourceId,
@@ -311,14 +365,14 @@ export function createCrossLaneFreeFlowInfo(flowId, sourceId, targetId, position
       lane: sourcePos.lane,
       layer: sourcePos.layer,
       row: sourcePos.row,
-      exitSide: crossSide
+      exitSide: exitSide
     },
-    waypoints: [],  // No intermediate waypoints (straight line)
+    waypoints: waypoint ? [waypoint] : [],
     target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
       row: targetPos.row,
-      entrySide: oppCrossSide
+      entrySide: entrySide
     }
   };
 }
@@ -357,23 +411,47 @@ export function assignCrossLaneBlockedPosition(sourceId, targetId, positions, el
  * @param {Object} directions - Direction mappings
  * @returns {Object} - Flow information
  */
-export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
+export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, positions, elementLanes, lanes, directions, isGatewaySource = false) {
   const sourcePos = positions.get(sourceId);
   const targetPos = positions.get(targetId);
 
-  const crossDirection = getCrossLaneDirection(
-    { sourceRef: sourceId, targetRef: targetId },
-    elementLanes,
-    lanes,
-    directions
-  );
+  // Calculate vertical relation using vIndex
+  const sourceV = getVIndex(sourcePos.lane, sourcePos.row, lanes);
+  const targetV = getVIndex(targetPos.lane, targetPos.row, lanes);
+  const dv = targetV - sourceV;
 
-  const crossSide = crossDirection === 'crossLane' ? directions.crossLane : directions.oppCrossLane;
-  const oppCrossSide = crossDirection === 'crossLane' ? directions.oppCrossLane : directions.crossLane;
+  let exitSide, entrySide;
 
-  // Different layer: L-shape (alongLane → crossLane → oppCrossLane)
-  const exitSide = directions.alongLane;
-  const entrySide = oppCrossSide;
+  if (isGatewaySource) {
+    // FALL 3: Gateway fan-out → vertical first, then horizontal
+    if (dv === 0) {
+      // Target at same height
+      exitSide = directions.alongLane;      // right
+      entrySide = directions.oppAlongLane;  // left
+    } else if (dv > 0) {
+      // Target below
+      exitSide = directions.crossLane;      // down
+      entrySide = directions.oppAlongLane;  // left
+    } else {
+      // Target above
+      exitSide = directions.oppCrossLane;   // up
+      entrySide = directions.oppAlongLane;  // left
+    }
+  } else {
+    // FALL 2: Non-gateway → horizontal first, then vertical
+    exitSide = directions.alongLane;  // right (always)
+    
+    if (dv === 0) {
+      // Target at same height
+      entrySide = directions.oppAlongLane;  // left
+    } else if (dv > 0) {
+      // Target below → flow comes from below
+      entrySide = directions.oppCrossLane;  // up
+    } else {
+      // Target above → flow comes from above
+      entrySide = directions.crossLane;     // down
+    }
+  }
 
   const waypoint = calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, directions);
 
@@ -534,56 +612,27 @@ export function createGatewayOutputFlowInfo(flowId, gatewayId, targetId, positio
   const gatewayPos = positions.get(gatewayId);
   const targetPos = positions.get(targetId);
 
-  // Check if same row (no waypoint needed)
-  if (gatewayPos.row === targetPos.row && gatewayPos.lane === targetPos.lane) {
-    // Same lane, same row: straight line
-    return {
-      flowId,
-      sourceId: gatewayId,
-      targetId,
-      isBackFlow: false,
-      source: {
-        lane: gatewayPos.lane,
-        layer: gatewayPos.layer,
-        row: gatewayPos.row,
-        exitSide: directions.alongLane
-      },
-      waypoints: [],
-      target: {
-        lane: targetPos.lane,
-        layer: targetPos.layer,
-        row: targetPos.row,
-        entrySide: directions.oppAlongLane
-      }
-    };
-  }
+  // Calculate vertical relation using vIndex (unified routing rule)
+  const gatewayV = getVIndex(gatewayPos.lane, gatewayPos.row, lanes);
+  const targetV = getVIndex(targetPos.lane, targetPos.row, lanes);
+  const dv = targetV - gatewayV;
 
-  // Different row or different lane: waypoint needed
-  // Determine exitSide based on vertical relation
-  let exitSide;
-  
-  const gatewayLane = elementLanes.get(gatewayId);
-  const targetLane = elementLanes.get(targetId);
-  const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
-  const targetLaneIndex = getLaneIndex(targetLane, lanes);
-  
-  if (targetLaneIndex === gatewayLaneIndex) {
-    // Same lane: use row comparison
-    if (targetPos.row > gatewayPos.row) {
-      exitSide = directions.crossLane;  // Target below → go down first
-    } else {
-      exitSide = directions.oppCrossLane;  // Target above → go up first
-    }
+  let exitSide, entrySide;
+
+  // FALL 3: Gateway fan-out (always applies to gateway outputs)
+  if (dv === 0) {
+    // Target at same height → straight horizontal
+    exitSide = directions.alongLane;      // right
+    entrySide = directions.oppAlongLane;  // left
+  } else if (dv > 0) {
+    // Target below → go down first, then right
+    exitSide = directions.crossLane;      // down
+    entrySide = directions.oppAlongLane;  // left
   } else {
-    // Different lanes: use lane ordering only
-    if (targetLaneIndex > gatewayLaneIndex) {
-      exitSide = directions.crossLane;  // Target lane is below → go down first
-    } else {
-      exitSide = directions.oppCrossLane;  // Target lane is above → go up first
-    }
+    // Target above → go up first, then right
+    exitSide = directions.oppCrossLane;   // up
+    entrySide = directions.oppAlongLane;  // left
   }
-  
-  const entrySide = directions.oppAlongLane;  // Comes in from left
 
   const waypoint = calculateWaypoint(gatewayPos, targetPos, exitSide, entrySide, directions);
 
@@ -642,13 +691,174 @@ export function createBackFlowInfo(flowId, sourceId, targetId, positions) {
 }
 
 /**
- * Main Phase 2 function - orchestrates all position assignment and flow information
- * @param {Map} elements - Element map from Phase 1
- * @param {Map} flows - Flow map from Phase 1
- * @param {Map} lanes - Lane map from Phase 1
- * @param {Object} directions - Direction mappings from applyConfig
- * @param {Array} backEdges - Back-edge flow IDs from Phase 1
- * @returns {Object} - {positions, flowInfos, elementLanes, matrix}
+ * Topologically sort flows to ensure dependencies are processed first
+ * Elements with multiple inputs should be positioned after all their inputs
+ * @param {Map} flows - Flow map
+ * @param {Map} elements - Element map
+ * @returns {Array} - Sorted array of [flowId, flow] tuples
+ */
+function topologicalSortFlows(flows, elements) {
+  // Build dependency graph: element -> number of unprocessed inputs
+  const inDegree = new Map();
+  const processed = new Set();
+  
+  for (const [elementId, element] of elements) {
+    inDegree.set(elementId, element.incoming.length);
+  }
+  
+  // Sort flows: prioritize flows to elements with fewer unprocessed inputs
+  const flowArray = Array.from(flows.entries());
+  
+  flowArray.sort(([flowIdA, flowA], [flowIdB, flowB]) => {
+    const targetA = flowA.targetRef;
+    const targetB = flowB.targetRef;
+    
+    // Count how many inputs are still unprocessed
+    const unprocessedA = inDegree.get(targetA) || 0;
+    const unprocessedB = inDegree.get(targetB) || 0;
+    
+    // Prioritize flows to elements with fewer unprocessed inputs
+    if (unprocessedA !== unprocessedB) {
+      return unprocessedA - unprocessedB;
+    }
+    
+    // If same, maintain original order
+    return 0;
+  });
+  
+  return flowArray;
+}
+
+/**
+ * Adjust layers for elements with multiple cross-lane inputs
+ * to prevent flow collisions
+ * @param {Map} positions - Element positions
+ * @param {Map} flows - Flow map
+ * @param {Map} elementLanes - Element lane assignments
+ * @param {Set} backEdgeSet - Set of back edge flow IDs
+ */
+function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet) {
+  // Count cross-lane inputs per element
+  const crossLaneInputs = new Map();
+  
+  for (const [flowId, flow] of flows) {
+    // Skip back edges
+    if (backEdgeSet.has(flowId)) continue;
+    
+    const sourceId = flow.sourceRef;
+    const targetId = flow.targetRef;
+    
+    const sourceLane = elementLanes.get(sourceId);
+    const targetLane = elementLanes.get(targetId);
+    
+    // Check if this is a cross-lane flow
+    if (sourceLane !== targetLane) {
+      if (!crossLaneInputs.has(targetId)) {
+        crossLaneInputs.set(targetId, []);
+      }
+      crossLaneInputs.get(targetId).push(flowId);
+    }
+  }
+  
+  // Adjust layer for elements with multiple cross-lane inputs
+  for (const [elementId, inputFlows] of crossLaneInputs) {
+    if (inputFlows.length > 1) {
+      const pos = positions.get(elementId);
+      if (pos) {
+        // Move element one layer to the right to make space for converging flows
+        pos.layer += 1;
+      }
+    }
+  }
+}
+
+/**
+ * Update FlowInfos with adjusted positions after layer changes
+ * Also recalculates exitSide, entrySide, and waypoints based on new positions
+ * @param {Map} flowInfos - Flow information map
+ * @param {Map} positions - Updated element positions
+ * @param {Map} elements - Element map (to check if source is gateway)
+ * @param {Map} lanes - Lane map (for vIndex calculation)
+ * @param {Object} directions - Direction mappings
+ */
+function updateFlowInfosWithAdjustedPositions(flowInfos, positions, elements, lanes, directions) {
+  for (const [flowId, flowInfo] of flowInfos) {
+    // Skip back-flows (they don't have standard routing)
+    if (flowInfo.isBackFlow) continue;
+    
+    // Update source position
+    const sourcePos = positions.get(flowInfo.sourceId);
+    if (!sourcePos) continue;
+    
+    flowInfo.source.lane = sourcePos.lane;
+    flowInfo.source.layer = sourcePos.layer;
+    flowInfo.source.row = sourcePos.row;
+    
+    // Update target position
+    const targetPos = positions.get(flowInfo.targetId);
+    if (!targetPos) continue;
+    
+    flowInfo.target.lane = targetPos.lane;
+    flowInfo.target.layer = targetPos.layer;
+    flowInfo.target.row = targetPos.row;
+    
+    // Recalculate exitSide, entrySide, and waypoints based on new positions
+    const sourceEl = elements.get(flowInfo.sourceId);
+    const isGatewaySource = sourceEl && sourceEl.type && sourceEl.type.includes('Gateway');
+    
+    // Calculate vertical relation using vIndex
+    const sourceV = getVIndex(sourcePos.lane, sourcePos.row, lanes);
+    const targetV = getVIndex(targetPos.lane, targetPos.row, lanes);
+    const dv = targetV - sourceV;
+    
+    if (sourcePos.layer === targetPos.layer) {
+      // FALL 1: Same layer → pure vertical flow
+      if (dv > 0) {
+        flowInfo.source.exitSide = directions.crossLane;      // down
+        flowInfo.target.entrySide = directions.oppCrossLane;  // up
+      } else {
+        flowInfo.source.exitSide = directions.oppCrossLane;   // up
+        flowInfo.target.entrySide = directions.crossLane;     // down
+      }
+    } else if (isGatewaySource) {
+      // FALL 3: Gateway fan-out → vertical first, then horizontal
+      if (dv === 0) {
+        flowInfo.source.exitSide = directions.alongLane;      // right
+        flowInfo.target.entrySide = directions.oppAlongLane;  // left
+      } else if (dv > 0) {
+        flowInfo.source.exitSide = directions.crossLane;      // down
+        flowInfo.target.entrySide = directions.oppAlongLane;  // left
+      } else {
+        flowInfo.source.exitSide = directions.oppCrossLane;   // up
+        flowInfo.target.entrySide = directions.oppAlongLane;  // left
+      }
+    } else {
+      // FALL 2: Non-gateway → horizontal first, then vertical
+      flowInfo.source.exitSide = directions.alongLane;  // right (always)
+      
+      if (dv === 0) {
+        flowInfo.target.entrySide = directions.oppAlongLane;  // left
+      } else if (dv > 0) {
+        flowInfo.target.entrySide = directions.oppCrossLane;  // up
+      } else {
+        flowInfo.target.entrySide = directions.crossLane;     // down
+      }
+    }
+    
+    // Recalculate waypoint
+    const waypoint = calculateWaypoint(sourcePos, targetPos, flowInfo.source.exitSide, flowInfo.target.entrySide, directions);
+    flowInfo.waypoints = waypoint ? [waypoint] : [];
+  }
+}
+
+/**
+ * Main Phase 2 function: Assign positions and create flow information
+ * @param {Map} elements - Element map
+ * @param {Map} flows - Flow map
+ * @param {Map} lanes - Lane map
+ * @param {Object} directions - Direction mappings
+ * @param {Array} backEdges - Back edges array
+ * @returns {Object} - { positions, flowInfos, elementLanes, matrix }
  */
 export function phase2(elements, flows, lanes, directions, backEdges) {
   // Step 1: Assign gateway lanes
@@ -664,8 +874,10 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
   // Convert backEdges array to Set for fast lookup
   const backEdgeSet = new Set(backEdges);
   
-  // Step 4: Process all flows
-  for (const [flowId, flow] of flows) {
+  // Step 4: Process all flows in topological order
+  const sortedFlows = topologicalSortFlows(flows, elements);
+  
+  for (const [flowId, flow] of sortedFlows) {
     const sourceId = flow.sourceRef;
     const targetId = flow.targetRef;
     
@@ -772,6 +984,11 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
         } else {
           // Blocked path - L-shaped with waypoint
           assignCrossLaneBlockedPosition(sourceId, targetId, positions, elementLanes);
+          
+          // Check if source is a gateway
+          const sourceEl = elements.find(e => e.id === sourceId);
+          const isGatewaySource = sourceEl && sourceEl.type && sourceEl.type.includes('Gateway');
+          
           const flowInfo = createCrossLaneBlockedFlowInfo(
             flowId,
             sourceId,
@@ -779,7 +996,8 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
             positions,
             elementLanes,
             lanes,
-            directions
+            directions,
+            isGatewaySource
           );
           flowInfos.set(flowId, flowInfo);
         }
@@ -797,6 +1015,12 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
       }
     }
   }
+  
+  // Step 5: Adjust layers for elements with multiple cross-lane inputs
+  adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet);
+  
+  // Step 6: Update FlowInfos with adjusted positions
+  updateFlowInfosWithAdjustedPositions(flowInfos, positions, elements, lanes, directions);
   
   return {
     positions,
