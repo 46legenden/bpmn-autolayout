@@ -665,9 +665,29 @@ export function createGatewayOutputFlowInfo(flowId, gatewayId, targetId, positio
  * @param {Map} positions - Positions map
  * @returns {Object} - Flow information
  */
-export function createBackFlowInfo(flowId, sourceId, targetId, positions) {
+export function createBackFlowInfo(flowId, sourceId, targetId, positions, elementLanes, lanes, directions) {
   const sourcePos = positions.get(sourceId);
   const targetPos = positions.get(targetId);
+
+  // Determine exitSide and entrySide for back-flows
+  // Back-flows go backwards (target layer < source layer)
+  // Typically: exit DOWN from source, enter from LEFT to target
+  
+  let exitSide, entrySide;
+  
+  // Check if same lane or cross-lane
+  const sourceLane = elementLanes.get(sourceId);
+  const targetLane = elementLanes.get(targetId);
+  
+  if (sourceLane === targetLane) {
+    // Same lane back-flow: exit DOWN, enter LEFT
+    exitSide = directions.crossLane;      // down (for horizontal)
+    entrySide = directions.oppAlongLane;  // left (for horizontal)
+  } else {
+    // Cross-lane back-flow: exit DOWN, enter LEFT
+    exitSide = directions.crossLane;      // down
+    entrySide = directions.oppAlongLane;  // left
+  }
 
   return {
     flowId,
@@ -678,14 +698,14 @@ export function createBackFlowInfo(flowId, sourceId, targetId, positions) {
       lane: sourcePos.lane,
       layer: sourcePos.layer,
       row: sourcePos.row,
-      exitSide: null  // Will be determined in Phase 3
+      exitSide  // Set exitSide for label positioning
     },
     waypoints: [],  // Will be calculated in Phase 3 (Manhattan routing)
     target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
       row: targetPos.row,
-      entrySide: null  // Will be determined in Phase 3
+      entrySide  // Set entrySide
     }
   };
 }
@@ -697,13 +717,15 @@ export function createBackFlowInfo(flowId, sourceId, targetId, positions) {
  * @param {Map} elements - Element map
  * @returns {Array} - Sorted array of [flowId, flow] tuples
  */
-function topologicalSortFlows(flows, elements) {
+function topologicalSortFlows(flows, elements, backEdgeSet = new Set()) {
   // Build dependency graph: element -> number of unprocessed inputs
   const inDegree = new Map();
   const processed = new Set();
   
   for (const [elementId, element] of elements) {
-    inDegree.set(elementId, element.incoming.length);
+    // Count only non-back-flow inputs
+    const nonBackFlowInputs = element.incoming.filter(flowId => !backEdgeSet.has(flowId));
+    inDegree.set(elementId, nonBackFlowInputs.length);
   }
   
   // Sort flows: prioritize flows to elements with fewer unprocessed inputs
@@ -875,7 +897,7 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
   const backEdgeSet = new Set(backEdges);
   
   // Step 4: Process all flows in topological order
-  const sortedFlows = topologicalSortFlows(flows, elements);
+  const sortedFlows = topologicalSortFlows(flows, elements, backEdgeSet);
   
   for (const [flowId, flow] of sortedFlows) {
     const sourceId = flow.sourceRef;
@@ -884,7 +906,7 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
     // Check if this is a back-flow
     if (backEdgeSet.has(flowId)) {
       // Back-flows are marked but not routed in Phase 2
-      const flowInfo = createBackFlowInfo(flowId, sourceId, targetId, positions);
+      const flowInfo = createBackFlowInfo(flowId, sourceId, targetId, positions, elementLanes, lanes, directions);
       flowInfos.set(flowId, flowInfo);
       continue;
     }
@@ -919,9 +941,10 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
         });
       }
       
-      // Sort gateway outputs
+      // Sort gateway outputs (exclude back-flows)
+      const forwardOutputs = outputFlows.filter(flowId => !backEdgeSet.has(flowId));
       const sortedOutputs = sortGatewayOutputs(
-        outputFlows,
+        forwardOutputs,
         flows,
         elementLanes,
         lanes,

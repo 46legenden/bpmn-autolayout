@@ -174,9 +174,9 @@ describe('Phase 1: Validation', () => {
   test('should pass validation for valid graph', () => {
     const graph = {
       elements: new Map([
-        ['start1', { id: 'start1', type: 'startEvent', incoming: [], outgoing: ['flow1'] }],
-        ['task1', { id: 'task1', type: 'task', incoming: ['flow1'], outgoing: ['flow2'] }],
-        ['end1', { id: 'end1', type: 'endEvent', incoming: ['flow2'], outgoing: [] }]
+        ['start1', { id: 'start1', type: 'startEvent', lane: 'lane1', incoming: [], outgoing: ['flow1'] }],
+        ['task1', { id: 'task1', type: 'task', lane: 'lane1', incoming: ['flow1'], outgoing: ['flow2'] }],
+        ['end1', { id: 'end1', type: 'endEvent', lane: 'lane1', incoming: ['flow2'], outgoing: [] }]
       ]),
       flows: new Map([
         ['flow1', { id: 'flow1', sourceRef: 'start1', targetRef: 'task1' }],
@@ -283,9 +283,9 @@ describe('Phase 1: Back-edge Detection', () => {
   test('should return empty array for graphs without loops', () => {
     const graph = {
       elements: new Map([
-        ['start1', { id: 'start1', type: 'startEvent', incoming: [], outgoing: ['flow1'] }],
-        ['task1', { id: 'task1', type: 'task', incoming: ['flow1'], outgoing: ['flow2'] }],
-        ['end1', { id: 'end1', type: 'endEvent', incoming: ['flow2'], outgoing: [] }]
+        ['start1', { id: 'start1', type: 'startEvent', lane: 'lane1', incoming: [], outgoing: ['flow1'] }],
+        ['task1', { id: 'task1', type: 'task', lane: 'lane1', incoming: ['flow1'], outgoing: ['flow2'] }],
+        ['end1', { id: 'end1', type: 'endEvent', lane: 'lane1', incoming: ['flow2'], outgoing: [] }]
       ]),
       flows: new Map([
         ['flow1', { id: 'flow1', sourceRef: 'start1', targetRef: 'task1' }],
@@ -304,6 +304,13 @@ describe('Phase 1: Integration', () => {
     const xml = `
       <bpmn:definitions>
         <bpmn:process>
+          <bpmn:laneSet>
+            <bpmn:lane id="lane1" name="Lane 1">
+              <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+              <bpmn:flowNodeRef>task1</bpmn:flowNodeRef>
+              <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+            </bpmn:lane>
+          </bpmn:laneSet>
           <bpmn:startEvent id="start1" name="Start" />
           <bpmn:task id="task1" name="Task 1" />
           <bpmn:endEvent id="end1" name="End" />

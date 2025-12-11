@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BPMN Viewer - Simple Loop</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    #canvas {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas"></div>
+
+  <script>
+    const viewer = new BpmnJS({
+      container: '#canvas'
+    });
+
+    fetch('input-simple-loop-layouted.bpmn?t=' + Date.now())
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          const canvas = viewer.get('canvas');
+          canvas.zoom('fit-viewport');
+        }).catch(err => {
+          console.error('Error rendering BPMN:', err);
+        });
+      })
+      .catch(err => {
+        console.error('Error loading BPMN:', err);
+      });
+  </script>
+</body>
+</html>

@@ -64,7 +64,7 @@ export function layoutBPMN(bpmnXml, config = {}) {
     const { coordinates, flowWaypoints, laneBounds } = phase3(phase2Result, elements, lanes, directions);
     
     // Generate BPMN XML with DI
-    const outputXml = injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions);
+    const outputXml = injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, phase2Result.flowInfos);
     
     return {
       success: true,

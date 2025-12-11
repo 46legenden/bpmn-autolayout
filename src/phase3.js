@@ -10,8 +10,8 @@
 
 // Layout constants (from old implementation)
 const COLUMN_WIDTH = 200;
-const LANE_BASE_HEIGHT = 150;
-const LANE_ROW_HEIGHT = 120;
+const LANE_BASE_HEIGHT = 180;  // Increased for more padding (was 150)
+const LANE_ROW_HEIGHT = 140;    // Increased for more padding (was 120)
 const LANE_TOP_OFFSET = 80;
 const POOL_X_OFFSET = 150;     // Left offset for pool
 
@@ -263,6 +263,32 @@ function determineTargetEntrySide(targetId, flowInfos, directions) {
 }
 
 /**
+ * Helper: Calculate lane bottom Y coordinate
+ * @param {Object} lane - Lane object
+ * @param {Map} positions - Element positions
+ * @param {Map} coordinates - Element coordinates
+ * @returns {number} - Lane bottom Y coordinate
+ */
+function calculateLaneBottom(lane, positions, coordinates) {
+  // Find max rows in this lane
+  let maxRow = 0;
+  for (const [elId, pos] of positions) {
+    if (pos.lane === lane.id && pos.normalizedRow > maxRow) {
+      maxRow = pos.normalizedRow;
+    }
+  }
+  
+  // Calculate lane height
+  const laneHeight = LANE_BASE_HEIGHT + maxRow * LANE_ROW_HEIGHT;
+  
+  // Lane top is at LANE_TOP_OFFSET (assuming first lane)
+  // TODO: Handle multiple lanes properly
+  const laneTop = LANE_TOP_OFFSET;
+  
+  return laneTop + laneHeight;
+}
+
+/**
  * Route back-flows using Manhattan pathfinding in "between-grid" space
  * @param {Object} flowInfo - Back-flow information
  * @param {Map} coordinates - Element coordinates
@@ -289,21 +315,74 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   const exitPoint = calculateConnectionPoint(sourceCoord, exitSide);
   waypoints.push(exitPoint);
   
-  // Step 2: Move to "between-rows" zone (pixel offset, not row + 0.5)
-  const BACK_BAND_OFFSET = LANE_ROW_HEIGHT / 2; // Between rows
+  // Step 2: Move to "between-rows" zone
+  // Calculate Y as midpoint between current row bottom and next row top (or lane bottom)
+  let betweenRowsY;
+  
+  // Find lane bounds to determine lane bottom
+  const sourceLane = lanes.get(sourcePos.lane);
+  const laneBottom = calculateLaneBottom(sourceLane, positions, coordinates);
+  
+  // Find if there's a next row in this lane
+  const currentRow = sourcePos.normalizedRow;
+  let nextRowTop = null;
+  
+  // Find elements in next row
+  for (const [elId, pos] of positions) {
+    if (pos.lane === sourcePos.lane && pos.normalizedRow === currentRow + 1) {
+      const elCoord = coordinates.get(elId);
+      if (elCoord) {
+        if (nextRowTop === null || elCoord.y < nextRowTop) {
+          nextRowTop = elCoord.y;
+        }
+      }
+    }
+  }
+  
+  if (nextRowTop !== null) {
+    // Multiple rows: midpoint between current row bottom and next row top
+    betweenRowsY = (exitPoint.y + nextRowTop) / 2;
+  } else {
+    // Single row: midpoint between current row bottom and lane bottom
+    betweenRowsY = (exitPoint.y + laneBottom) / 2;
+  }
+  
   const betweenRowsPoint = {
     x: exitPoint.x,
-    y: exitPoint.y + BACK_BAND_OFFSET
+    y: betweenRowsY
   };
   waypoints.push(betweenRowsPoint);
   
   // Step 3: Move LEFT in "between-layers" zone
-  const LAYER_OFFSET = COLUMN_WIDTH / 2; // Between layers
+  // Calculate corridor X as midpoint between layers
   let targetX;
   
   if (targetEntrySide === directions.oppAlongLane) {
-    // Enter from LEFT: go to before target layer
-    targetX = targetCoord.x - LAYER_OFFSET;
+    // Enter from LEFT: find previous layer and calculate midpoint
+    // Find the element in the previous layer (layer = targetPos.layer - 1)
+    const prevLayer = targetPos.layer - 1;
+    let prevLayerRight = 0;
+    
+    // Find rightmost element in previous layer
+    for (const [elId, pos] of positions) {
+      if (pos.layer === prevLayer && pos.lane === targetPos.lane) {
+        const elCoord = coordinates.get(elId);
+        if (elCoord) {
+          const elRight = elCoord.x + elCoord.width;
+          if (elRight > prevLayerRight) {
+            prevLayerRight = elRight;
+          }
+        }
+      }
+    }
+    
+    // Corridor X = midpoint between previous layer right and target layer left
+    if (prevLayerRight > 0) {
+      targetX = (prevLayerRight + targetCoord.x) / 2;
+    } else {
+      // Fallback: use fixed offset
+      targetX = targetCoord.x - COLUMN_WIDTH / 2;
+    }
   } else if (targetEntrySide === directions.crossLane) {
     // Enter from DOWN: align with target center
     targetX = targetCoord.x + targetCoord.width / 2;
@@ -655,23 +734,25 @@ export function generateElementDI(elements, coordinates, flowWaypoints, flows) {
 }
 
 /**
- * Calculate edge label position based on waypoints
+ * Calculate edge label position with unified rules
+ * Uses consistent offset from gateway for all directions
  * @param {Object} flow - Flow object
  * @param {Array} waypoints - Flow waypoints
  * @param {Map} elements - Element map
  * @param {Map} coordinates - Element coordinates
- * @param {Map} flows - All flows (to check gateway outputs)
+ * @param {Map} flows - All flows (to check for multiple outputs on same side)
+ * @param {Object} flowInfo - Flow info from Phase 2 (contains exitSide for this flow)
+ * @param {Map} flowInfos - All flow infos (to check other flows' exitSides)
  * @returns {Object} - {x, y, width, height}
  */
-function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows) {
+function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows, flowInfo, flowInfos) {
   const sourceEl = elements.get(flow.sourceRef);
-  const targetEl = elements.get(flow.targetRef);
   
   // Check if source is a gateway (output flow from gateway)
   const isGatewaySource = sourceEl && sourceEl.type && sourceEl.type.includes('Gateway');
   
   if (!isGatewaySource || !waypoints || waypoints.length < 2) {
-    // Not a gateway flow or no waypoints → use midpoint (standard)
+    // Not a gateway flow → use midpoint
     const sourcePos = coordinates.get(flow.sourceRef);
     const targetPos = coordinates.get(flow.targetRef);
     if (!sourcePos || !targetPos) {
@@ -685,93 +766,92 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
     };
   }
   
-  // Gateway OUTPUT → position label based on ACTUAL waypoint direction
-  const wp1 = waypoints[0]; // First waypoint (exit from gateway)
-  const wp2 = waypoints[1]; // Second waypoint (direction indicator)
+  // Gateway OUTPUT → unified positioning rules
+  const LABEL_WIDTH = 50;
+  const LABEL_HEIGHT = 20;
+  const LABEL_OFFSET = 5;  // Consistent offset from arrow waypoint
   
-  // Determine direction from first two waypoints
-  const dx = wp2.x - wp1.x;
-  const dy = wp2.y - wp1.y;
+  // Get first waypoint (arrow exit point)
+  const wp1 = waypoints[0];
   
-  // Determine primary direction
-  const isHorizontal = Math.abs(dx) > Math.abs(dy);
+  // Get gateway bounds (for fallback)
+  const gatewayCoord = coordinates.get(flow.sourceRef);
+  if (!gatewayCoord) {
+    return { x: 0, y: 0, width: LABEL_WIDTH, height: LABEL_HEIGHT };
+  }
   
-  if (isHorizontal) {
-    // Horizontal flow (right or left)
-    const goingRight = dx > 0;
-    
-    if (goingRight) {
-      // Going RIGHT → Label ABOVE arrow, right of gateway
-      return {
-        x: wp1.x + 5,
-        y: wp1.y - 25,
-        width: 50,
-        height: 20
-      };
-    } else {
-      // Going LEFT → Label ABOVE arrow, left of gateway
-      return {
-        x: wp1.x - 55,
-        y: wp1.y - 25,
-        width: 50,
-        height: 20
-      };
-    }
+  // Determine exitSide
+  let exitSide = null;
+  if (flowInfo && flowInfo.source && flowInfo.source.exitSide) {
+    exitSide = flowInfo.source.exitSide;
   } else {
-    // Vertical flow (down or up)
-    const goingDown = dy > 0;
-    
-    if (goingDown) {
-      // Going DOWN → Check if multiple vertical outputs from same gateway
-      // Count gateway outputs that go down
-      const gatewayOutputs = [];
-      for (const [fId, f] of flows) {
-        if (f.sourceRef === flow.sourceRef) {
-          gatewayOutputs.push(fId);
-        }
-      }
-      
-      const verticalOutputs = gatewayOutputs.filter(fId => {
-        const f = flows.get(fId);
-        const fWaypoints = waypoints; // TODO: get actual waypoints for fId
-        // For now, assume if waypoints.length >= 3, it's vertical then horizontal
-        return waypoints.length >= 3;
-      });
-      
-      const hasMultipleVerticalOutputs = gatewayOutputs.length > 1;
-      
-      if (hasMultipleVerticalOutputs && waypoints.length >= 3) {
-        // Multiple vertical outputs → Use HORIZONTAL segment for label
-        // Position label on the horizontal segment (before target)
-        const secondLastWp = waypoints[waypoints.length - 2];
-        const gatewayCoord = coordinates.get(flow.sourceRef);
-        const gatewayWidthOffset = gatewayCoord ? gatewayCoord.width / 2 : 0;
-        
-        return {
-          x: wp1.x + gatewayWidthOffset + 5,  // Same X for all labels!
-          y: secondLastWp.y - 25,              // Different Y (based on waypoint)
-          width: 50,
-          height: 20
-        };
-      } else {
-        // Single vertical flow → Label RIGHT of arrow, below gateway
-        return {
-          x: wp1.x + 5,
-          y: wp1.y + 5,
-          width: 50,
-          height: 20
-        };
-      }
+    // Fallback: analyze waypoints
+    const wp1 = waypoints[0];
+    const wp2 = waypoints[1];
+    const dx = wp2.x - wp1.x;
+    const dy = wp2.y - wp1.y;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      exitSide = dx > 0 ? 'right' : 'left';
     } else {
-      // Going UP → Label RIGHT of arrow
-      return {
-        x: wp1.x + 5,
-        y: wp1.y - 25,
-        width: 50,
-        height: 20
-      };
+      exitSide = dy > 0 ? 'down' : 'up';
     }
   }
+  
+  // Check for multiple outputs on the SAME exitSide (for knick positioning)
+  // Count how many flows from this gateway have the same exitSide
+  let sameExitSideCount = 0;
+  for (const [fId, f] of flows) {
+    if (f.sourceRef === flow.sourceRef && fId !== flow.id) {
+      const otherFlowInfo = flowInfos ? flowInfos.get(fId) : null;
+      const otherExitSide = otherFlowInfo?.source?.exitSide;
+      if (otherExitSide === exitSide) {
+        sameExitSideCount++;
+      }
+    }
+  }
+  const hasMultipleSameExitSide = sameExitSideCount > 0 && waypoints.length >= 3;
+  
+  let labelX, labelY;
+  
+  if (exitSide === 'right') {
+    // Right: label above arrow, same X as waypoint
+    labelX = wp1.x + LABEL_OFFSET;
+    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    
+  } else if (exitSide === 'down') {
+    if (hasMultipleSameExitSide) {
+      // Multiple outputs: label at knick (horizontal segment)
+      const secondLastWp = waypoints[waypoints.length - 2];
+      labelX = wp1.x + LABEL_OFFSET;  // Same X as right labels
+      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
+    } else {
+      // Single output: label right of arrow
+      labelX = wp1.x + LABEL_OFFSET;  // Same X as right labels
+      labelY = wp1.y + LABEL_OFFSET;
+    }
+    
+  } else if (exitSide === 'left') {
+    // Left: label above arrow, left of waypoint
+    labelX = wp1.x - LABEL_WIDTH - LABEL_OFFSET;
+    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    
+  } else if (exitSide === 'up') {
+    // Up: label right of arrow
+    labelX = wp1.x + LABEL_OFFSET;
+    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    
+  } else {
+    // Fallback
+    labelX = wp1.x + LABEL_OFFSET;
+    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+  }
+  
+  return {
+    x: labelX,
+    y: labelY,
+    width: LABEL_WIDTH,
+    height: LABEL_HEIGHT
+  };
 }
 
 /**
@@ -780,9 +860,10 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
  * @param {Map} flowWaypoints - Flow waypoints (pixel coordinates)
  * @param {Map} elements - Element map
  * @param {Map} coordinates - Element coordinates
+ * @param {Map} flowInfos - Flow infos from Phase 2 (contains exitSide)
  * @returns {string} - BPMN DI XML string
  */
-export function generateFlowDI(flows, flowWaypoints, elements, coordinates) {
+export function generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos) {
   let xml = '';
   
   for (const [flowId, flow] of flows) {
@@ -797,7 +878,8 @@ export function generateFlowDI(flows, flowWaypoints, elements, coordinates) {
     
     // Add label if flow has a name
     if (flow.name) {
-      const labelBounds = calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows);
+      const flowInfo = flowInfos ? flowInfos.get(flowId) : null;
+      const labelBounds = calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows, flowInfo, flowInfos);
       xml += `      <bpmndi:BPMNLabel>\n`;
       xml += `        <dc:Bounds x="${labelBounds.x}" y="${labelBounds.y}" width="${labelBounds.width}" height="${labelBounds.height}" />\n`;
       xml += `      </bpmndi:BPMNLabel>\n`;
@@ -818,9 +900,10 @@ export function generateFlowDI(flows, flowWaypoints, elements, coordinates) {
  * @param {Map} coordinates - Element coordinates
  * @param {Map} flowWaypoints - Flow waypoints
  * @param {Map} laneBounds - Lane bounds
+ * @param {Map} flowInfos - Flow infos from Phase 2
  * @returns {string} - BPMN XML with DI
  */
-export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions) {
+export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, flowInfos) {
   // Extract pool ID from BPMN XML (participant element)
   const poolMatch = bpmnXml.match(/<bpmn:participant\s+id="([^"]+)"/);  
   const poolId = poolMatch ? poolMatch[1] : null;
@@ -832,7 +915,7 @@ export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowW
   const poolDI = poolId ? generatePoolDI(poolId, poolBounds, directions) : '';
   const laneDI = generateLaneDI(lanes, laneBounds, poolBounds, directions);
   const elementDI = generateElementDI(elements, coordinates, flowWaypoints, flows);
-  const flowDI = generateFlowDI(flows, flowWaypoints, elements, coordinates);
+  const flowDI = generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos);
   
   // Check if DI already exists
   if (bpmnXml.includes('<bpmndi:BPMNDiagram')) {
