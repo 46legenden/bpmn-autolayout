@@ -126,7 +126,7 @@
     <bpmndi:BPMNShape bpmnElement="gw1">
       <dc:Bounds x="425" y="511" width="50" height="50"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="366" y="506" width="82" height="20" />
+        <dc:Bounds x="360" y="511" width="80" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNEdge bpmnElement="f1">

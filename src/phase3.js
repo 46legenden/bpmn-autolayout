@@ -766,19 +766,45 @@ function calculateElementLabelPosition(elementId, coordinates, flowWaypoints, fl
   
   // Special handling for gateways: always top-left
   if (element && element.type && element.type.includes('Gateway')) {
-    // Calculate label width based on text length (approximate: 8px per character)
     const text = element.name || '';
-    const labelWidth = Math.max(80, text.length * 8 + 10);  // Min 80px, +10px padding
-    const labelHeight = 20;
-    const horizontalGap = 2;  // Small gap from gateway center (closer)
-    const verticalGap = 10;   // Larger gap from gateway center (further up)
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    
+    // Determine if label will wrap to multiple lines
+    let labelWidth;
+    let labelHeight;
+    
+    if (words.length >= 2 && text.length > 15) {
+      // Likely 2 lines (e.g., "Documents Complete?")
+      labelWidth = 80;
+      labelHeight = 40;  // 2 lines
+    } else if (text.length > 12) {
+      // Long single-word or phrase - wider label
+      labelWidth = 100;
+      labelHeight = 20;
+    } else {
+      // Short label - standard size
+      labelWidth = 80;
+      labelHeight = 20;
+    }
+    
+    // Adjust gaps based on label type
+    let horizontalGap;
+    let verticalGap = 5;  // Standard vertical gap
+    
+    if (labelHeight > 20) {
+      // Multi-line label - standard gap
+      horizontalGap = 5;
+    } else {
+      // Single-line label - larger gap to move it further left
+      horizontalGap = 10;
+    }
     
     // Gateway center
     const gatewayCenterX = pos.x + pos.width / 2;
     const gatewayCenterY = pos.y + pos.height / 2;
     
-    // Position label so its BOTTOM-RIGHT corner is near the gateway
-    // This ensures the label doesn't overlap with the gateway shape
+    // Position label so its BOTTOM-RIGHT corner is near the gateway center
+    // This places the label to the top-left of the gateway
     const labelRightEdge = gatewayCenterX - horizontalGap;
     const labelX = labelRightEdge - labelWidth;
     

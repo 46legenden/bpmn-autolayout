@@ -198,13 +198,13 @@
     <bpmndi:BPMNShape bpmnElement="gw_docs_complete">
       <dc:Bounds x="625" y="145" width="50" height="50"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="486" y="140" width="162" height="20" />
+        <dc:Bounds x="565" y="125" width="80" height="40" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="gw_role">
       <dc:Bounds x="825" y="328.3333333333333" width="50" height="50"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="718" y="323.3333333333333" width="130" height="20" />
+        <dc:Bounds x="740" y="328.3333333333333" width="100" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNEdge bpmnElement="f1">
