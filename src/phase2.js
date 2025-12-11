@@ -639,19 +639,25 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   const hasUpOutputs = crossLaneOutputs.some(o => o.laneDirection === 'up');
   const hasDownOutputs = crossLaneOutputs.some(o => o.laneDirection === 'down');
   const isSymmetricDistribution = hasUpOutputs && hasDownOutputs;
+  
+  // Check if only single cross-lane forward-flow (rest are back-flows or same-lane)
+  const hasSingleCrossLaneOutput = crossLaneOutputs.length === 1;
 
-  // Check if cross-lane sides are free for symmetric distribution
+  // Check if cross-lane sides are free for optimization
   // For symmetric distribution (up AND down), both crossLane directions must be free
   // For horizontal lanes: crossLane='down', oppCrossLane='up'
   const crossLaneFree = !occupiedSides.has(directions.crossLane);           // for horizontal: 'down' is free
   const oppCrossLaneFree = !occupiedSides.has(directions.oppCrossLane);     // for horizontal: 'up' is free
-  const canUseSymmetricOptimization = crossLaneFree && oppCrossLaneFree;
+  const canUseOptimization = crossLaneFree && oppCrossLaneFree;
 
   // Determine layer offset for outputs
-  // If cross-lane outputs are symmetrically distributed (up AND down), use same layer
-  // BUT only if top and bottom sides are free
+  // Optimization (layerOffset=0) applies when:
+  // 1. Only single cross-lane forward-flow (compact layout), OR
+  // 2. Cross-lane outputs are symmetrically distributed (up AND down)
+  // AND both cross-lane sides are free (no inputs from those directions)
   // Otherwise use normal rule (layer + 1)
-  const layerOffset = (crossLaneOutputs.length > 0 && isSymmetricDistribution && canUseSymmetricOptimization) ? 0 : 1;
+  const shouldOptimize = (hasSingleCrossLaneOutput || isSymmetricDistribution) && canUseOptimization;
+  const layerOffset = (crossLaneOutputs.length > 0 && shouldOptimize) ? 0 : 1;
 
   // Assign symmetric rows only for same-lane outputs
   const sameLaneRows = assignSymmetricRows(sameLaneOutputs.length);
@@ -661,24 +667,46 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   // Same-lane outputs with symmetric rows (always use layer + 1)
   for (let i = 0; i < sameLaneOutputs.length; i++) {
     const { targetId, targetLane } = sameLaneOutputs[i];
-    const targetPos = {
-      lane: targetLane,
-      layer: gatewayPos.layer + 1,
-      row: sameLaneRows[i]
-    };
-    positions.set(targetId, targetPos);
-    outputPositions.set(targetId, targetPos);
+    const newLayer = gatewayPos.layer + 1;
+    const existingPos = positions.get(targetId);
+    
+    if (existingPos) {
+      // Target already has a position - update to maximum layer
+      if (newLayer > existingPos.layer) {
+        existingPos.layer = newLayer;
+      }
+      outputPositions.set(targetId, existingPos);
+    } else {
+      const targetPos = {
+        lane: targetLane,
+        layer: newLayer,
+        row: sameLaneRows[i]
+      };
+      positions.set(targetId, targetPos);
+      outputPositions.set(targetId, targetPos);
+    }
   }
 
   // Cross-lane outputs - use optimized layer if symmetric
   for (const { targetId, targetLane } of crossLaneOutputs) {
-    const targetPos = {
-      lane: targetLane,
-      layer: gatewayPos.layer + layerOffset,
-      row: 0  // Always row 0 for cross-lane
-    };
-    positions.set(targetId, targetPos);
-    outputPositions.set(targetId, targetPos);
+    const newLayer = gatewayPos.layer + layerOffset;
+    const existingPos = positions.get(targetId);
+    
+    if (existingPos) {
+      // Target already has a position - update to maximum layer
+      if (newLayer > existingPos.layer) {
+        existingPos.layer = newLayer;
+      }
+      outputPositions.set(targetId, existingPos);
+    } else {
+      const targetPos = {
+        lane: targetLane,
+        layer: newLayer,
+        row: 0  // Always row 0 for cross-lane
+      };
+      positions.set(targetId, targetPos);
+      outputPositions.set(targetId, targetPos);
+    }
   }
 
   return outputPositions;
