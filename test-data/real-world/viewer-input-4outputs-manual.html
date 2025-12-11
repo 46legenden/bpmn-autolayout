@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BPMN Viewer - Input 4outputs Manual Test</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #canvas { height: 100vh; }
+    #info { position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <strong>Manual Test: input-4outputs.bpmn</strong><br>
+    Input: KI-generated BPMN (no layout)<br>
+    Output: After layout algorithm
+  </div>
+  <div id="canvas"></div>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    
+    // Load BPMN file with cache busting
+    fetch('input-4outputs-layouted.bpmn?t=' + Date.now())
+      .then(response => response.text())
+      .then(bpmnXML => {
+        viewer.importXML(bpmnXML).then(() => {
+          const canvas = viewer.get('canvas');
+          canvas.zoom('fit-viewport');
+          console.log('BPMN diagram loaded successfully!');
+        }).catch(err => {
+          console.error('Error rendering BPMN:', err);
+        });
+      })
+      .catch(err => {
+        console.error('Error loading BPMN file:', err);
+      });
+  </script>
+</body>
+</html>
