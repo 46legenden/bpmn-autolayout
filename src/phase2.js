@@ -284,6 +284,19 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
     }
   }
   
+  // Also check source and target lanes for elements in the same layer (different rows)
+  // These would block the vertical path from source to target
+  for (const [elemId, elemPos] of positions) {
+    if (elemId !== sourceId && elemId !== targetId && elemPos.layer === sourcePos.layer) {
+      const elemLane = elementLanes.get(elemId);
+      // Check if element is in source or target lane
+      if (elemLane === sourceLane || elemLane === targetLane) {
+        // Element in same lane and same layer but different row - blocks vertical path
+        return false;
+      }
+    }
+  }
+  
   // Check ALL lanes (including source and target) for conflicting cross-lane flows
   for (let i = minLaneIndex; i <= maxLaneIndex; i++) {
     const laneId = laneIds[i];
@@ -322,9 +335,31 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
     return existingPos;
   }
 
+  // Check if there are other elements in the same layer (collision detection)
+  let targetLayer = sourcePos.layer;
+  let hasCollision = false;
+  
+  // Check all elements in the same layer
+  for (const [elemId, elemPos] of positions) {
+    if (elemId !== sourceId && elemPos.layer === targetLayer) {
+      // Element in same layer - check if it's in a different lane
+      const elemLane = elementLanes.get(elemId);
+      if (elemLane !== lane && elemLane !== elementLanes.get(sourceId)) {
+        // Element in different lane but same layer - potential collision
+        hasCollision = true;
+        break;
+      }
+    }
+  }
+  
+  // If collision detected, move to next layer
+  if (hasCollision) {
+    targetLayer = sourcePos.layer + 1;
+  }
+
   const targetPos = {
     lane,
-    layer: sourcePos.layer,  // Same layer (free path)
+    layer: targetLayer,
     row: 0
   };
   
@@ -689,6 +724,35 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   const shouldOptimize = !hasMultipleOutputsToSameLane && (hasSingleCrossLaneOutput || isSymmetricDistribution) && canUseOptimization;
   const layerOffset = (crossLaneOutputs.length > 0 && shouldOptimize) ? 0 : 1;
 
+  // Sort same-lane outputs by their next flow direction (UP first, DOWN last)
+  // This ensures outputs going UP are in upper rows, outputs going DOWN are in lower rows
+  sameLaneOutputs.sort((a, b) => {
+    // Find next flow from each target
+    const aNextFlow = Array.from(flows.values()).find(f => f.sourceRef === a.targetId);
+    const bNextFlow = Array.from(flows.values()).find(f => f.sourceRef === b.targetId);
+    
+    if (!aNextFlow && !bNextFlow) return 0;
+    if (!aNextFlow) return 1;  // a has no next flow, put it last
+    if (!bNextFlow) return -1; // b has no next flow, put it last
+    
+    // Get next target lanes
+    const aNextTargetLane = elementLanes.get(aNextFlow.targetRef);
+    const bNextTargetLane = elementLanes.get(bNextFlow.targetRef);
+    
+    const aNextLaneIndex = getLaneIndex(aNextTargetLane, lanes);
+    const bNextLaneIndex = getLaneIndex(bNextTargetLane, lanes);
+    
+    // Determine direction (relative to gateway lane)
+    const aDirection = aNextLaneIndex < gatewayLaneIndex ? 'up' : 'down';
+    const bDirection = bNextLaneIndex < gatewayLaneIndex ? 'up' : 'down';
+    
+    // UP first (row 0), DOWN last (row 1)
+    if (aDirection === 'up' && bDirection === 'down') return -1;
+    if (aDirection === 'down' && bDirection === 'up') return 1;
+    
+    return 0;
+  });
+  
   // Assign symmetric rows only for same-lane outputs
   const sameLaneRows = assignSymmetricRows(sameLaneOutputs.length);
 
