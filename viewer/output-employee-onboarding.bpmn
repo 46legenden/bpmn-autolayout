@@ -219,14 +219,14 @@
       <di:waypoint x="650" y="195"/>
       <di:waypoint x="650" y="313.3333333333333"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="655" y="200" width="50" height="20" />
+        <dc:Bounds x="675" y="195" width="50" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f_docs_no">
       <di:waypoint x="675" y="170"/>
       <di:waypoint x="800" y="170"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="680" y="145" width="50" height="20" />
+        <dc:Bounds x="675" y="150" width="50" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f3">
@@ -242,7 +242,7 @@
       <di:waypoint x="875" y="353.3333333333333"/>
       <di:waypoint x="1000" y="353.3333333333333"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="880" y="328.3333333333333" width="50" height="20" />
+        <dc:Bounds x="875" y="333.3333333333333" width="50" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f_role_standard">
@@ -250,7 +250,7 @@
       <di:waypoint x="850" y="486.66666666666663"/>
       <di:waypoint x="1000" y="486.66666666666663"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="855" y="383.3333333333333" width="50" height="20" />
+        <dc:Bounds x="875" y="466.66666666666663" width="50" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f5">

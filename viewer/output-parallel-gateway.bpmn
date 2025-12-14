@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_1"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Lanes -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="lane_hr" name="HR Department">
+        <bpmn:flowNodeRef>start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_receive_application</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>parallel_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>parallel_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_make_decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_technical" name="Technical Team">
+        <bpmn:flowNodeRef>task_technical_interview</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_background" name="Background Check">
+        <bpmn:flowNodeRef>task_background_check</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_references" name="References">
+        <bpmn:flowNodeRef>task_check_references</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <!-- Start Event -->
+    <bpmn:startEvent id="start" name="Application Received">
+      <bpmn:outgoing>flow1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <!-- Task: Receive Application -->
+    <bpmn:task id="task_receive_application" name="Review Application">
+      <bpmn:incoming>flow1</bpmn:incoming>
+      <bpmn:outgoing>flow2</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Parallel Gateway: Split (AND) -->
+    <bpmn:parallelGateway id="parallel_split" name="Start Parallel Checks">
+      <bpmn:incoming>flow2</bpmn:incoming>
+      <bpmn:outgoing>flow3</bpmn:outgoing>
+      <bpmn:outgoing>flow4</bpmn:outgoing>
+      <bpmn:outgoing>flow5</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <!-- Parallel Task 1: Technical Interview -->
+    <bpmn:task id="task_technical_interview" name="Technical Interview">
+      <bpmn:incoming>flow3</bpmn:incoming>
+      <bpmn:outgoing>flow6</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Parallel Task 2: Background Check -->
+    <bpmn:task id="task_background_check" name="Background Check">
+      <bpmn:incoming>flow4</bpmn:incoming>
+      <bpmn:outgoing>flow7</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Parallel Task 3: Check References -->
+    <bpmn:task id="task_check_references" name="Check References">
+      <bpmn:incoming>flow5</bpmn:incoming>
+      <bpmn:outgoing>flow8</bpmn:outgoing>
+    </bpmn:task>
+    <!-- Parallel Gateway: Merge (AND) -->
+    <bpmn:parallelGateway id="parallel_merge" name="Wait for All Checks">
+      <bpmn:incoming>flow6</bpmn:incoming>
+      <bpmn:incoming>flow7</bpmn:incoming>
+      <bpmn:incoming>flow8</bpmn:incoming>
+      <bpmn:outgoing>flow9</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <!-- Task: Make Decision -->
+    <bpmn:task id="task_make_decision" name="Make Hiring Decision">
+      <bpmn:incoming>flow9</bpmn:incoming>
+      <bpmn:outgoing>flow10</bpmn:outgoing>
+    </bpmn:task>
+    <!-- End Event -->
+    <bpmn:endEvent id="end" name="Process Complete">
+      <bpmn:incoming>flow10</bpmn:incoming>
+    </bpmn:endEvent>
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow1" sourceRef="start" targetRef="task_receive_application" />
+    <bpmn:sequenceFlow id="flow2" sourceRef="task_receive_application" targetRef="parallel_split" />
+    <bpmn:sequenceFlow id="flow3" name="Technical" sourceRef="parallel_split" targetRef="task_technical_interview" />
+    <bpmn:sequenceFlow id="flow4" name="Background" sourceRef="parallel_split" targetRef="task_background_check" />
+    <bpmn:sequenceFlow id="flow5" name="References" sourceRef="parallel_split" targetRef="task_check_references" />
+    <bpmn:sequenceFlow id="flow6" sourceRef="task_technical_interview" targetRef="parallel_merge" />
+    <bpmn:sequenceFlow id="flow7" sourceRef="task_background_check" targetRef="parallel_merge" />
+    <bpmn:sequenceFlow id="flow8" sourceRef="task_check_references" targetRef="parallel_merge" />
+    <bpmn:sequenceFlow id="flow9" sourceRef="parallel_merge" targetRef="task_make_decision" />
+    <bpmn:sequenceFlow id="flow10" sourceRef="task_make_decision" targetRef="end" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
+        <dc:Bounds x="180" y="80" width="1388" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_hr_di" bpmnElement="lane_hr" isHorizontal="true">
+        <dc:Bounds x="180" y="260" width="1388" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_technical_di" bpmnElement="lane_technical" isHorizontal="true">
+        <dc:Bounds x="180" y="440" width="1388" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_background_di" bpmnElement="lane_background" isHorizontal="true">
+        <dc:Bounds x="180" y="620" width="1388" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_references_di" bpmnElement="lane_references" isHorizontal="true">
+        <dc:Bounds x="180" y="800" width="1388" height="180" />
+      </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start">
+      <dc:Bounds x="232" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="222" y="373" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end">
+      <dc:Bounds x="1432" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1422" y="373" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_receive_application">
+      <dc:Bounds x="400" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="390" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_technical_interview">
+      <dc:Bounds x="800" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_background_check">
+      <dc:Bounds x="800" y="670" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="755" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_check_references">
+      <dc:Bounds x="800" y="850" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="935" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_make_decision">
+      <dc:Bounds x="1200" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1190" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="parallel_split">
+      <dc:Bounds x="625" y="325" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="565" y="305" width="80" height="40" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="parallel_merge">
+      <dc:Bounds x="1025" y="325" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="965" y="305" width="80" height="40" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="flow1">
+      <di:waypoint x="268" y="350"/>
+      <di:waypoint x="400" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow2">
+      <di:waypoint x="500" y="350"/>
+      <di:waypoint x="625" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow3">
+      <di:waypoint x="650" y="375"/>
+      <di:waypoint x="650" y="530"/>
+      <di:waypoint x="800" y="530"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="650" y="510" width="73" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow4">
+      <di:waypoint x="650" y="375"/>
+      <di:waypoint x="650" y="710"/>
+      <di:waypoint x="800" y="710"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="650" y="690" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow5">
+      <di:waypoint x="650" y="375"/>
+      <di:waypoint x="650" y="890"/>
+      <di:waypoint x="800" y="890"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="650" y="870" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow6">
+      <di:waypoint x="900" y="530"/>
+      <di:waypoint x="1050" y="530"/>
+      <di:waypoint x="1050" y="375"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow7">
+      <di:waypoint x="900" y="710"/>
+      <di:waypoint x="1050" y="710"/>
+      <di:waypoint x="1050" y="375"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow8">
+      <di:waypoint x="900" y="890"/>
+      <di:waypoint x="1050" y="890"/>
+      <di:waypoint x="1050" y="375"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow9">
+      <di:waypoint x="1075" y="350"/>
+      <di:waypoint x="1200" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow10">
+      <di:waypoint x="1300" y="350"/>
+      <di:waypoint x="1432" y="350"/>
+    </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
