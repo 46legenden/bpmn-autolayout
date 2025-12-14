@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BPMN Viewer - Real World Complex (FINAL)</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+    }
+    #canvas {
+      border: 1px solid #ccc;
+      width: 100%;
+      height: 800px;
+    }
+    h1 {
+      margin-top: 0;
+      color: #27ae60;
+    }
+    .fix-note {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    .fix-note h3 {
+      margin-top: 0;
+      color: #155724;
+    }
+    .fix-note ul {
+      margin-bottom: 0;
+    }
+  </style>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+</head>
+<body>
+  <h1>✅ BPMN Viewer - Real World Complex (FINAL)</h1>
+  <div class="fix-note">
+    <h3>🎉 All Issues Fixed!</h3>
+    <ul>
+      <li><strong>Layer Blocking:</strong> Cross-lane flows in opposite directions no longer conflict (task3 → Layer 2)</li>
+      <li><strong>Backflow Exit:</strong> Exits from TOP (not RIGHT) for clean corridor routing</li>
+      <li><strong>Backflow Entry:</strong> Enters target from TOP (not BOTTOM) for proper flow direction</li>
+      <li><strong>Corridor:</strong> Stays within Agent Lane (y=465, within 440-620)</li>
+    </ul>
+    <p><strong>General Solution:</strong> All fixes apply to any BPMN diagram with backflows and cross-lane flows!</p>
+  </div>
+  <div id="canvas"></div>
+
+  <script>
+    const viewer = new BpmnJS({
+      container: '#canvas'
+    });
+
+    fetch('output-real-world-complex-final.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          viewer.get('canvas').zoom('fit-viewport');
+        });
+      })
+      .catch(err => {
+        console.error('Error loading diagram:', err);
+        document.getElementById('canvas').innerHTML = '<p style="color: red;">Error loading diagram: ' + err.message + '</p>';
+      });
+  </script>
+</body>
+</html>
