@@ -70,16 +70,16 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
       <bpmndi:BPMNShape id="pool_di" bpmnElement="pool" isHorizontal="true">
-        <dc:Bounds x="150" y="80" width="818" height="960" />
+        <dc:Bounds x="150" y="280" width="768" height="754" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
-        <dc:Bounds x="180" y="80" width="788" height="180" />
+        <dc:Bounds x="180" y="80" width="738" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane1_di" bpmnElement="lane1" isHorizontal="true">
-        <dc:Bounds x="180" y="260" width="788" height="180" />
+        <dc:Bounds x="180" y="260" width="738" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane2_di" bpmnElement="lane2" isHorizontal="true">
-        <dc:Bounds x="180" y="440" width="788" height="600" />
+        <dc:Bounds x="180" y="440" width="738" height="600" />
       </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="start1">
       <dc:Bounds x="232" y="332" width="36" height="36"/>

@@ -95,16 +95,16 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
       <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
-        <dc:Bounds x="180" y="80" width="988" height="180" />
+        <dc:Bounds x="180" y="80" width="938" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane_director_di" bpmnElement="lane_director" isHorizontal="true">
-        <dc:Bounds x="180" y="260" width="988" height="320" />
+        <dc:Bounds x="180" y="260" width="938" height="320" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane_manager_di" bpmnElement="lane_manager" isHorizontal="true">
-        <dc:Bounds x="180" y="580" width="988" height="320" />
+        <dc:Bounds x="180" y="580" width="938" height="320" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane_archive_di" bpmnElement="lane_archive" isHorizontal="true">
-        <dc:Bounds x="180" y="900" width="988" height="180" />
+        <dc:Bounds x="180" y="900" width="938" height="180" />
       </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="start">
       <dc:Bounds x="232" y="655.3333333333334" width="36" height="36"/>

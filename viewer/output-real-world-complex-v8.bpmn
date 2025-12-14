@@ -83,25 +83,25 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
       <bpmndi:BPMNShape id="Participant_1_di" bpmnElement="Participant_1" isHorizontal="true">
-        <dc:Bounds x="150" y="280" width="2768" height="880" />
+        <dc:Bounds x="82" y="280" width="2936" height="880" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
-        <dc:Bounds x="180" y="80" width="2738" height="180" />
+        <dc:Bounds x="112" y="80" width="2906" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="customer_di" bpmnElement="customer" isHorizontal="true">
-        <dc:Bounds x="180" y="260" width="2738" height="180" />
+        <dc:Bounds x="112" y="260" width="2906" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="agent_di" bpmnElement="agent" isHorizontal="true">
-        <dc:Bounds x="180" y="440" width="2738" height="180" />
+        <dc:Bounds x="112" y="440" width="2906" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="manager_di" bpmnElement="manager" isHorizontal="true">
-        <dc:Bounds x="180" y="620" width="2738" height="180" />
+        <dc:Bounds x="112" y="620" width="2906" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="system_di" bpmnElement="system" isHorizontal="true">
-        <dc:Bounds x="180" y="800" width="2738" height="180" />
+        <dc:Bounds x="112" y="800" width="2906" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="notification_di" bpmnElement="notification" isHorizontal="true">
-        <dc:Bounds x="180" y="980" width="2738" height="180" />
+        <dc:Bounds x="112" y="980" width="2906" height="180" />
       </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="start1">
       <dc:Bounds x="232" y="332" width="36" height="36"/>

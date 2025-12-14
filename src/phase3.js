@@ -276,45 +276,27 @@ function determineTargetEntrySide(targetId, flowInfos, directions) {
  * @returns {number} - Lane bottom Y coordinate
  */
 function calculateLaneTop(lane, positions, coordinates, sourcePos) {
-  // Calculate lane top based on lane index
-  // Lanes are stacked vertically: lane0, lane1, lane2, ...
+  // Calculate lane top from actual element coordinates
+  // Find the topmost element in the target lane
   
-  // Find all lanes and their indices
-  const laneIds = [];
+  let minY = Infinity;
+  
   for (const [elId, pos] of positions) {
-    if (!laneIds.includes(pos.lane)) {
-      laneIds.push(pos.lane);
-    }
-  }
-  
-  // Find index of source lane
-  const laneIndex = laneIds.indexOf(sourcePos.lane);
-  
-  if (laneIndex === 0) {
-    // First lane starts at LANE_TOP_OFFSET
-    return LANE_TOP_OFFSET;
-  } else {
-    // Calculate cumulative height of previous lanes
-    let cumulativeHeight = LANE_TOP_OFFSET;
-    
-    for (let i = 0; i < laneIndex; i++) {
-      const prevLaneId = laneIds[i];
-      
-      // Find max rows in previous lane
-      let maxRow = 0;
-      for (const [elId, pos] of positions) {
-        if (pos.lane === prevLaneId && pos.normalizedRow > maxRow) {
-          maxRow = pos.normalizedRow;
-        }
+    if (pos.lane === sourcePos.lane) {
+      const coord = coordinates.get(elId);
+      if (coord && coord.y < minY) {
+        minY = coord.y;
       }
-      
-      // Add height of previous lane
-      const prevLaneHeight = LANE_BASE_HEIGHT + maxRow * LANE_ROW_HEIGHT;
-      cumulativeHeight += prevLaneHeight;
     }
-    
-    return cumulativeHeight;
   }
+  
+  if (minY === Infinity) {
+    // Fallback: use LANE_TOP_OFFSET
+    return LANE_TOP_OFFSET;
+  }
+  
+  // Return the top of the topmost element
+  return minY;
 }
 
 function calculateLaneBottom(lane, positions, coordinates) {
@@ -445,44 +427,16 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   waypoints.push(exitPoint);
   
   // Step 2: Move to "between-rows/lanes" zone for horizontal corridor
-  // Calculate Y as midpoint between exit point and lane boundary
+  // For backflows, use TARGET lane top (not source) to avoid crossings
   let betweenRowsY;
   
-  // Find lane bounds
-  const sourceLane = lanes.get(sourcePos.lane);
+  // Find target lane bounds (backflows go to target lane corridor)
+  const targetLane = lanes.get(targetPos.lane);
   
-  if (exitSide === directions.oppCrossLane) {
-    // Exit UP: corridor at constant offset below lane top
-    const laneTop = calculateLaneTop(sourceLane, positions, coordinates, sourcePos);
-    betweenRowsY = laneTop + CORRIDOR_OFFSET;
-  } else {
-    // Exit DOWN or RIGHT: corridor between exit point and lane bottom (or next row)
-    const laneBottom = calculateLaneBottom(sourceLane, positions, coordinates);
-    
-    // Find if there's a next row in this lane
-    const currentRow = sourcePos.normalizedRow;
-    let nextRowTop = null;
-    
-    // Find elements in next row
-    for (const [elId, pos] of positions) {
-      if (pos.lane === sourcePos.lane && pos.normalizedRow === currentRow + 1) {
-        const elCoord = coordinates.get(elId);
-        if (elCoord) {
-          if (nextRowTop === null || elCoord.y < nextRowTop) {
-            nextRowTop = elCoord.y;
-          }
-        }
-      }
-    }
-    
-    if (nextRowTop !== null) {
-      // Multiple rows: midpoint between exit point and next row top
-      betweenRowsY = (exitPoint.y + nextRowTop) / 2;
-    } else {
-      // Single row: midpoint between exit point and lane bottom
-      betweenRowsY = (exitPoint.y + laneBottom) / 2;
-    }
-  }
+  // Always use target lane top for backflow corridor (enter from top)
+  // Corridor should be ABOVE the topmost element in target lane
+  const targetLaneTop = calculateLaneTop(targetLane, positions, coordinates, targetPos);
+  betweenRowsY = targetLaneTop - CORRIDOR_OFFSET;
   
   const betweenRowsPoint = {
     x: exitPoint.x,
@@ -543,9 +497,13 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
     x: betweenLayersPoint.x,
     y: targetEntryPoint.y
   };
-  waypoints.push(alignPoint);
   
-  // Step 5: Enter target from same side as normal flows
+  // Only push alignPoint if it's different from targetEntryPoint
+  if (alignPoint.x !== targetEntryPoint.x || alignPoint.y !== targetEntryPoint.y) {
+    waypoints.push(alignPoint);
+  }
+  
+  // Step 5: Enter target
   waypoints.push(targetEntryPoint);
   
   return waypoints;
@@ -668,21 +626,32 @@ export function calculatePoolBounds(laneBounds, coordinates, directions) {
   }
   
   if (isHorizontal) {
-    // Calculate width based on rightmost element (from old implementation)
-    const maxX = Math.max(...Array.from(coordinates.values()).map(p => p.x + p.width));
-    const poolWidth = maxX - POOL_X_OFFSET + 100;
+    // Calculate pool bounds from actual element positions
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
     
-    // Calculate height as sum of all lane heights
-    let poolHeight = 0;
-    for (const bounds of laneBounds.values()) {
-      poolHeight += bounds.height;
+    for (const coord of coordinates.values()) {
+      if (coord.x < minX) minX = coord.x;
+      if (coord.x + coord.width > maxX) maxX = coord.x + coord.width;
+      if (coord.y < minY) minY = coord.y;
+      if (coord.y + coord.height > maxY) maxY = coord.y + coord.height;
     }
+    
+    // Pool wraps all elements with margins
+    const POOL_MARGIN_LEFT = 50;   // Margin inside pool
+    const POOL_MARGIN_TOP = 30;    // Space for pool label
+    const POOL_MARGIN_RIGHT = 50;  // Margin inside pool
+    const POOL_MARGIN_BOTTOM = 50;
+    
+    // Pool starts at POOL_X_OFFSET (for lane labels)
+    // Width extends from POOL_X_OFFSET to rightmost element + margin
+    const poolWidth = (maxX - POOL_X_OFFSET) + POOL_MARGIN_RIGHT;
     
     return {
       x: POOL_X_OFFSET,
-      y: LANE_TOP_OFFSET,
+      y: minY - POOL_MARGIN_TOP,
       width: poolWidth,
-      height: poolHeight
+      height: (maxY - minY) + POOL_MARGIN_TOP + POOL_MARGIN_BOTTOM
     };
   } else {
     // Vertical orientation (similar logic, swapped dimensions)
@@ -731,20 +700,16 @@ export function generateLaneDI(lanes, laneBounds, poolBounds, directions) {
   const isHorizontal = directions.alongLane === 'right';
   
   if (isHorizontal) {
-    // Horizontal orientation (from old implementation)
-    let laneY = LANE_TOP_OFFSET;
-    
+    // Horizontal orientation - use actual lane positions
     for (const [laneId, lane] of lanes) {
       const bounds = laneBounds.get(laneId);
       if (!bounds) continue;
       
       shapes.push(
         `      <bpmndi:BPMNShape id="${laneId}_di" bpmnElement="${laneId}" isHorizontal="true">`,
-        `        <dc:Bounds x="${POOL_X_OFFSET + 30}" y="${laneY}" width="${poolBounds.width - 30}" height="${bounds.height}" />`,
+        `        <dc:Bounds x="${poolBounds.x + 30}" y="${bounds.y}" width="${poolBounds.width - 30}" height="${bounds.height}" />`,
         `      </bpmndi:BPMNShape>`
       );
-      
-      laneY += bounds.height;
     }
   } else {
     // Vertical orientation
