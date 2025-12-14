@@ -258,6 +258,9 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
   const sourcePos = positions.get(sourceId);
   const sourceLane = elementLanes.get(sourceId);
   const targetLane = elementLanes.get(targetId);
+  
+  const DEBUG = process.env.DEBUG_PATH === 'true';
+  if (DEBUG) console.log(`\n[PATH CHECK] ${sourceId} (${sourceLane}, layer ${sourcePos.layer}, row ${sourcePos.row}) → ${targetId} (${targetLane})`);
 
   const sourceLaneIndex = getLaneIndex(sourceLane, lanes);
   const targetLaneIndex = getLaneIndex(targetLane, lanes);
@@ -291,7 +294,34 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
       const elemLane = elementLanes.get(elemId);
       // Check if element is in source or target lane
       if (elemLane === sourceLane || elemLane === targetLane) {
-        // Element in same lane and same layer but different row - blocks vertical path
+        // Element in same lane and same layer but different row
+        // Only blocks if rows would cause crossing:
+        // - If both in source lane with different rows, check if they go in opposite directions
+        // - If element row is between source and target vertically, it blocks
+        
+        if (elemLane === sourceLane) {
+          // Both in source lane - check if rows are compatible with directions
+          // If sourceRow < elemRow and source goes UP, no block (source exits from top)
+          // If sourceRow > elemRow and source goes DOWN, no block (source exits from bottom)
+          const sourceRow = sourcePos.row || 0;
+          const elemRow = elemPos.row || 0;
+          
+          if (DEBUG) console.log(`  Element ${elemId} in source lane: sourceRow=${sourceRow}, elemRow=${elemRow}, direction=${flowDirection}`);
+          
+          if (flowDirection === 'up' && sourceRow < elemRow) {
+            // Source is above elem, going up - no block
+            if (DEBUG) console.log(`    → No block (source above, going up)`);
+            continue;
+          }
+          if (flowDirection === 'down' && sourceRow > elemRow) {
+            // Source is below elem, going down - no block
+            if (DEBUG) console.log(`    → No block (source below, going down)`);
+            continue;
+          }
+        }
+        
+        // Otherwise, element blocks the path
+        if (DEBUG) console.log(`  → BLOCKED by ${elemId}`);
         return false;
       }
     }
@@ -308,12 +338,22 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
         // There's already a cross-lane flow in this layer
         // Check if it's in the opposite direction
         if (cell.flowCrossLane !== flowDirection) {
+          // Conflict detected - but check if it's in the source lane
+          if (laneId === sourceLane) {
+            // Conflict in source lane - this is OK if flows have different rows
+            // (they exit from different sides and don't cross)
+            if (DEBUG) console.log(`  → Conflicting flow in source lane ${laneId}, but different rows - OK`);
+            continue;
+          }
+          
+          if (DEBUG) console.log(`  → BLOCKED by conflicting flow in lane ${laneId} (${cell.flowCrossLane} vs ${flowDirection})`);
           return false;  // Path is blocked by conflicting cross-lane flow
         }
       }
     }
   }
 
+  if (DEBUG) console.log(`  → Path is FREE`);
   return true;  // Path is free
 }
 
@@ -325,15 +365,27 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
  * @param {Map} elementLanes - elementId → laneId
  * @returns {Object} - { lane, layer, row }
  */
-export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes) {
+export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes) {
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
+  const sourceLane = elementLanes.get(sourceId);
+  
+  const DEBUG = process.env.DEBUG_COLLISION === 'true';
+  if (DEBUG) console.log(`\n[COLLISION CHECK] ${sourceId} (${sourceLane}, layer ${sourcePos.layer}) → ${targetId} (${lane})`);
   
   // If target already has a position, keep it (first input wins for same-layer cross-lane)
   const existingPos = positions.get(targetId);
   if (existingPos) {
+    if (DEBUG) console.log(`  Target already positioned at layer ${existingPos.layer}`);
     return existingPos;
   }
+
+  // Get lane indices to determine which lanes are between source and target
+  const sourceLaneIndex = getLaneIndex(sourceLane, lanes);
+  const targetLaneIndex = getLaneIndex(lane, lanes);
+  const minLaneIndex = Math.min(sourceLaneIndex, targetLaneIndex);
+  const maxLaneIndex = Math.max(sourceLaneIndex, targetLaneIndex);
+  const laneIds = Array.from(lanes.keys());
 
   // Check if there are other elements in the same layer (collision detection)
   let targetLayer = sourcePos.layer;
@@ -344,17 +396,30 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
     if (elemId !== sourceId && elemPos.layer === targetLayer) {
       // Element in same layer - check if it's in a different lane
       const elemLane = elementLanes.get(elemId);
-      if (elemLane !== lane && elemLane !== elementLanes.get(sourceId)) {
-        // Element in different lane but same layer - potential collision
-        hasCollision = true;
-        break;
+      if (DEBUG) console.log(`  Checking ${elemId} (${elemLane}, layer ${elemPos.layer}, row ${elemPos.row})`);
+      if (elemLane !== lane && elemLane !== sourceLane) {
+        // Element in different lane but same layer - check if it's BETWEEN source and target
+        const elemLaneIndex = getLaneIndex(elemLane, lanes);
+        if (elemLaneIndex > minLaneIndex && elemLaneIndex < maxLaneIndex) {
+          // Element is between source and target lanes - potential collision
+          if (DEBUG) console.log(`    → COLLISION! (element between source and target lanes)`);
+          hasCollision = true;
+          break;
+        } else {
+          if (DEBUG) console.log(`    → No collision (element not between source and target)`);
+        }
+      } else {
+        if (DEBUG) console.log(`    → No collision (same lane as source or target)`);
       }
     }
   }
   
   // If collision detected, move to next layer
   if (hasCollision) {
+    if (DEBUG) console.log(`  → Moving target to layer ${targetLayer + 1}`);
     targetLayer = sourcePos.layer + 1;
+  } else {
+    if (DEBUG) console.log(`  → No collision, keeping layer ${targetLayer}`);
   }
 
   const targetPos = {
@@ -1384,7 +1449,7 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
         
         if (pathFree) {
           // Free path - direct vertical connection
-          assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes);
+          assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes);
           const flowInfo = createCrossLaneFreeFlowInfo(
             flowId,
             sourceId,
