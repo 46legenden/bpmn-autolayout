@@ -74,8 +74,24 @@ export function parseXML(bpmnXml) {
       });
     }
 
-    // Extract tasks (task, userTask, serviceTask)
-    const taskTypes = ['task', 'userTask', 'serviceTask'];
+    // Extract intermediate events
+    const intermediateEventTypes = ['intermediateThrowEvent', 'intermediateCatchEvent', 'boundaryEvent'];
+    for (const eventType of intermediateEventTypes) {
+      const eventRegex = new RegExp(`<bpmn:${eventType}[^>]*id="([^"]+)"[^>]*>`, 'g');
+      while ((match = eventRegex.exec(bpmnXml)) !== null) {
+        const id = match[1];
+        elements.set(id, {
+          id,
+          type: eventType,
+          name: extractName(bpmnXml, id),
+          incoming: [],
+          outgoing: []
+        });
+      }
+    }
+
+    // Extract tasks (all BPMN task types)
+    const taskTypes = ['task', 'userTask', 'serviceTask', 'manualTask', 'sendTask', 'receiveTask', 'scriptTask', 'businessRuleTask'];
     for (const taskType of taskTypes) {
       const taskRegex = new RegExp(`<bpmn:${taskType}[^>]*id="([^"]+)"[^>]*>`, 'g');
       while ((match = taskRegex.exec(bpmnXml)) !== null) {
