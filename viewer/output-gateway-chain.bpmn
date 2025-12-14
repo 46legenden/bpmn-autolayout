@@ -88,19 +88,19 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane bpmnElement="Process_1">
       <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
-        <dc:Bounds x="180" y="80" width="1020" height="180" />
+        <dc:Bounds x="180" y="80" width="1388" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane1_di" bpmnElement="lane1" isHorizontal="true">
-        <dc:Bounds x="180" y="260" width="1020" height="180" />
+        <dc:Bounds x="180" y="260" width="1388" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane2_di" bpmnElement="lane2" isHorizontal="true">
-        <dc:Bounds x="180" y="440" width="1020" height="180" />
+        <dc:Bounds x="180" y="440" width="1388" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane3_di" bpmnElement="lane3" isHorizontal="true">
-        <dc:Bounds x="180" y="620" width="1020" height="180" />
+        <dc:Bounds x="180" y="620" width="1388" height="180" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="lane4_di" bpmnElement="lane4" isHorizontal="true">
-        <dc:Bounds x="180" y="800" width="1020" height="180" />
+        <dc:Bounds x="180" y="800" width="1388" height="180" />
       </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="start1">
       <dc:Bounds x="232" y="332" width="36" height="36"/>
@@ -109,9 +109,9 @@
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="end1">
-      <dc:Bounds x="1032" y="332" width="36" height="36"/>
+      <dc:Bounds x="1432" y="332" width="36" height="36"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="1022" y="373" width="56" height="20" />
+        <dc:Bounds x="1422" y="373" width="56" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task1">
@@ -139,9 +139,9 @@
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task5">
-      <dc:Bounds x="800" y="310" width="100" height="80"/>
+      <dc:Bounds x="1200" y="310" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="790" y="285" width="120" height="20" />
+        <dc:Bounds x="1190" y="285" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="gw1">
@@ -197,21 +197,22 @@
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f7">
       <di:waypoint x="1100" y="530"/>
-      <di:waypoint x="850" y="530"/>
-      <di:waypoint x="850" y="390"/>
+      <di:waypoint x="1250" y="530"/>
+      <di:waypoint x="1250" y="390"/>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f8">
       <di:waypoint x="1100" y="710"/>
-      <di:waypoint x="850" y="710"/>
-      <di:waypoint x="850" y="390"/>
+      <di:waypoint x="1250" y="710"/>
+      <di:waypoint x="1250" y="390"/>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f9">
-      <di:waypoint x="850" y="850"/>
-      <di:waypoint x="850" y="390"/>
+      <di:waypoint x="900" y="890"/>
+      <di:waypoint x="1250" y="890"/>
+      <di:waypoint x="1250" y="390"/>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f11">
-      <di:waypoint x="900" y="350"/>
-      <di:waypoint x="1032" y="350"/>
+      <di:waypoint x="1300" y="350"/>
+      <di:waypoint x="1432" y="350"/>
     </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

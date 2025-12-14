@@ -957,66 +957,105 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
   const shouldUseCorridor = gatewayLayer !== undefined && targetLayer !== undefined && 
                             gatewayLayer !== targetLayer && waypoints.length >= 3;
   
-  // Find the rightmost waypoint x among all flows from this gateway
-  // This ensures all labels align vertically at the same x-position
-  let rightmostWpX = wp1.x;
+  // Check if multiple outputs from this gateway go to the same layer
+  // If yes: use vertical alignment (rightmost waypoint)
+  // If no: use individual waypoint (near gateway)
+  let outputLayerCounts = new Map();
   
-  if (flowWaypoints) {
-    for (const [otherFlowId, otherFlow] of flows) {
-      if (otherFlow.sourceRef === flow.sourceRef) {
-        const otherWaypoints = flowWaypoints.get(otherFlowId);
-        if (otherWaypoints && otherWaypoints.length > 0) {
-          const otherWp1X = otherWaypoints[0].x;
-          if (otherWp1X > rightmostWpX) {
-            rightmostWpX = otherWp1X;
-          }
+  if (flowInfos && flowWaypoints) {
+    for (const [otherFlowId, otherFlowInfo] of flowInfos) {
+      const otherFlow = flows.get(otherFlowId);
+      if (otherFlow && otherFlow.sourceRef === flow.sourceRef) {
+        const otherTargetLayer = otherFlowInfo.target?.layer;
+        if (otherTargetLayer !== undefined) {
+          outputLayerCounts.set(otherTargetLayer, (outputLayerCounts.get(otherTargetLayer) || 0) + 1);
         }
       }
     }
   }
   
-  // Use rightmost waypoint as reference for all labels
-  const labelReferenceX = rightmostWpX;
+  // Check if any layer has multiple outputs
+  let hasConvergingOutputs = false;
+  for (const count of outputLayerCounts.values()) {
+    if (count >= 2) {
+      hasConvergingOutputs = true;
+      break;
+    }
+  }
+  
+  // Determine label reference X
+  let labelReferenceX;
+  
+  if (hasConvergingOutputs) {
+    // Multiple outputs to same layer → use rightmost waypoint for vertical alignment
+    let rightmostWpX = wp1.x;
+    
+    if (flowWaypoints) {
+      for (const [otherFlowId, otherFlow] of flows) {
+        if (otherFlow.sourceRef === flow.sourceRef) {
+          const otherWaypoints = flowWaypoints.get(otherFlowId);
+          if (otherWaypoints && otherWaypoints.length > 0) {
+            const otherWp1X = otherWaypoints[0].x;
+            if (otherWp1X > rightmostWpX) {
+              rightmostWpX = otherWp1X;
+            }
+          }
+        }
+      }
+    }
+    
+    labelReferenceX = rightmostWpX;
+  } else {
+    // Each output to different layer → use individual waypoint (near gateway)
+    labelReferenceX = wp1.x;
+  }
   
   let labelX, labelY;
   
   if (exitSide === 'right') {
-    if (shouldUseCorridor) {
-      // No optimization: label at corridor (knick)
+    if (shouldUseCorridor && hasConvergingOutputs) {
+      // Multiple outputs converging: label at corridor (knick)
       const secondLastWp = waypoints[waypoints.length - 2];
-      labelX = labelReferenceX + LABEL_OFFSET;  // Aligned with rightmost waypoint
+      labelX = labelReferenceX + LABEL_OFFSET;
       labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
     } else {
-      // Optimized: label near gateway
+      // Single output or no convergence: label near gateway
       labelX = labelReferenceX + LABEL_OFFSET;
       labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
     }
     
   } else if (exitSide === 'down') {
-    if (shouldUseCorridor) {
-      // No optimization: label at corridor (knick)
+    if (shouldUseCorridor && hasConvergingOutputs) {
+      // Multiple outputs converging: label at corridor (knick)
       const secondLastWp = waypoints[waypoints.length - 2];
-      labelX = labelReferenceX + LABEL_OFFSET;  // Aligned with rightmost waypoint
+      labelX = labelReferenceX + LABEL_OFFSET;
       labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
     } else {
-      // Optimized: label near gateway
+      // Single output or no convergence: label near gateway
       labelX = labelReferenceX + LABEL_OFFSET;
       labelY = wp1.y + LABEL_OFFSET;
     }
     
   } else if (exitSide === 'left') {
-    // Left: label above arrow, left of waypoint
-    labelX = labelReferenceX - LABEL_WIDTH - LABEL_OFFSET;
-    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    if (shouldUseCorridor && hasConvergingOutputs) {
+      // Multiple outputs converging: label at corridor (knick)
+      const secondLastWp = waypoints[waypoints.length - 2];
+      labelX = labelReferenceX - LABEL_WIDTH - LABEL_OFFSET;
+      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
+    } else {
+      // Single output or no convergence: label near gateway
+      labelX = labelReferenceX - LABEL_WIDTH - LABEL_OFFSET;
+      labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
+    }
     
   } else if (exitSide === 'up') {
-    if (shouldUseCorridor) {
-      // No optimization: label at corridor (knick)
+    if (shouldUseCorridor && hasConvergingOutputs) {
+      // Multiple outputs converging: label at corridor (knick)
       const secondLastWp = waypoints[waypoints.length - 2];
-      labelX = labelReferenceX + LABEL_OFFSET;  // Aligned with rightmost waypoint
-      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;  // Above corridor
+      labelX = labelReferenceX + LABEL_OFFSET;
+      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
     } else {
-      // Optimized: label near gateway
+      // Single output or no convergence: label near gateway
       labelX = labelReferenceX + LABEL_OFFSET;
       labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
     }

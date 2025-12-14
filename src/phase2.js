@@ -935,7 +935,7 @@ function topologicalSortFlows(flows, elements, backEdgeSet = new Set()) {
  * @param {Map} elementLanes - Element lane assignments
  * @param {Set} backEdgeSet - Set of back edge flow IDs
  */
-function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet) {
+function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, elements) {
   // Count cross-lane inputs per element
   const crossLaneInputs = new Map();
   
@@ -958,30 +958,71 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
     }
   }
   
-  // Adjust layer for elements with multiple cross-lane inputs
-  // Only adjust if inputs come from the SAME layer (to avoid collisions)
+  // Adjust layer for elements with multiple inputs (cross-lane or same-lane)
+  // Element must be placed AFTER the rightmost input
   const adjusted = new Set();
-  for (const [elementId, inputFlows] of crossLaneInputs) {
+  
+  // Build map of ALL inputs per element (not just cross-lane)
+  const allInputs = new Map();
+  for (const [flowId, flow] of flows) {
+    if (backEdgeSet.has(flowId)) continue;
+    
+    const targetId = flow.targetRef;
+    if (!allInputs.has(targetId)) {
+      allInputs.set(targetId, []);
+    }
+    allInputs.get(targetId).push(flowId);
+  }
+  
+  // Adjust elements with multiple inputs
+  // Skip if inputs come from gateways (gateway logic handles those)
+  for (const [elementId, inputFlows] of allInputs) {
     if (inputFlows.length > 1) {
       const pos = positions.get(elementId);
       if (!pos) continue;
       
-      // Check if all inputs come from the same layer
-      const inputLayers = new Set();
+      // Check if any input comes from a gateway
+      let hasGatewayInput = false;
+      const inputLayers = [];
+      
       for (const flowId of inputFlows) {
         const flow = flows.get(flowId);
         if (!flow) continue;
-        const sourcePos = positions.get(flow.sourceRef);
+        
+        const sourceId = flow.sourceRef;
+        const sourceElement = elements.get(sourceId);
+        
+        // Check if source is a gateway
+        if (sourceElement && (
+          sourceElement.type === 'exclusiveGateway' ||
+          sourceElement.type === 'parallelGateway' ||
+          sourceElement.type === 'inclusiveGateway'
+        )) {
+          hasGatewayInput = true;
+        }
+        
+        const sourcePos = positions.get(sourceId);
         if (sourcePos) {
-          inputLayers.add(sourcePos.layer);
+          inputLayers.push(sourcePos.layer);
         }
       }
       
-      // Only adjust if inputs are from the same layer
-      if (inputLayers.size === 1) {
-        // Move element one layer to the right to make space for converging flows
-        pos.layer += 1;
-        adjusted.add(elementId);
+      // Skip adjustment if any input is from a gateway
+      // Gateway output logic already handles positioning
+      if (hasGatewayInput) {
+        continue;
+      }
+      
+      // For non-gateway inputs: adjust to max + 1
+      if (inputLayers.length > 0) {
+        const maxInputLayer = Math.max(...inputLayers);
+        const requiredLayer = maxInputLayer + 1;
+        
+        // Only adjust if element is too early
+        if (pos.layer < requiredLayer) {
+          pos.layer = requiredLayer;
+          adjusted.add(elementId);
+        }
       }
     }
   }
@@ -1307,7 +1348,7 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
   }
   
   // Step 5: Adjust layers for elements with multiple cross-lane inputs
-  adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet);
+  adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, elements);
   
   // Step 6: Update FlowInfos with adjusted positions
   updateFlowInfosWithAdjustedPositions(flowInfos, positions, elements, lanes, directions);

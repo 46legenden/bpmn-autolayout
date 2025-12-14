@@ -114,7 +114,7 @@ exports[`Phase 2: Layer and Row Assignment (Snapshot-based) > should assign corr
 {
   "end1": {
     "lane": "lane1",
-    "layer": 4,
+    "layer": 3,
     "row": 0,
   },
   "start1": {
