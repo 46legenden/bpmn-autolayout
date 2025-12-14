@@ -219,7 +219,7 @@
       <di:waypoint x="650" y="195"/>
       <di:waypoint x="650" y="313.3333333333333"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="675" y="195" width="50" height="20" />
+        <dc:Bounds x="650" y="195" width="50" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f_docs_no">
