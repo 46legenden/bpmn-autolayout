@@ -91,7 +91,7 @@ export function parseXML(bpmnXml) {
     }
 
     // Extract tasks (all BPMN task types)
-    const taskTypes = ['task', 'userTask', 'serviceTask', 'manualTask', 'sendTask', 'receiveTask', 'scriptTask', 'businessRuleTask'];
+    const taskTypes = ['task', 'userTask', 'serviceTask', 'manualTask', 'sendTask', 'receiveTask', 'scriptTask', 'businessRuleTask', 'callActivity'];
     for (const taskType of taskTypes) {
       const taskRegex = new RegExp(`<bpmn:${taskType}[^>]*id="([^"]+)"[^>]*>`, 'g');
       while ((match = taskRegex.exec(bpmnXml)) !== null) {

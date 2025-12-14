@@ -1116,7 +1116,7 @@ function removeDeletedElementsFromXML(bpmnXml, elements, flows) {
   let cleanedXml = bpmnXml;
   
   // Find all element IDs in the XML
-  const elementRegex = /<bpmn:(task|userTask|serviceTask|manualTask|sendTask|receiveTask|scriptTask|businessRuleTask|exclusiveGateway|parallelGateway|inclusiveGateway|eventBasedGateway|complexGateway|startEvent|endEvent|intermediateThrowEvent|intermediateCatchEvent|boundaryEvent)[^>]+id="([^"]+)"[^>]*(?:\/>|>[\s\S]*?<\/bpmn:\1>)/g;
+  const elementRegex = /<bpmn:(task|userTask|serviceTask|manualTask|sendTask|receiveTask|scriptTask|businessRuleTask|callActivity|exclusiveGateway|parallelGateway|inclusiveGateway|startEvent|endEvent|intermediateThrowEvent|intermediateCatchEvent|boundaryEvent)[^>]+id="([^"]+)"[^>]*(?:\/>|>[\s\S]*?<\/bpmn:\1>)/g;
   let match;
   const xmlElementIds = [];
   

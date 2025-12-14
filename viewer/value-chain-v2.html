@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BPMN Viewer - value-chain-v2</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+    #canvas { border: 1px solid #ccc; width: 100%; height: 800px; }
+    h1 { margin-top: 0; }
+  </style>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+</head>
+<body>
+  <h1>BPMN Diagram: value-chain-v2</h1>
+  <div id="canvas"></div>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    fetch('output-value-chain-v2.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          viewer.get('canvas').zoom('fit-viewport');
+        });
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        document.getElementById('canvas').innerHTML = '<p style="color: red;">Error: ' + err.message + '</p>';
+      });
+  </script>
+</body>
+</html>

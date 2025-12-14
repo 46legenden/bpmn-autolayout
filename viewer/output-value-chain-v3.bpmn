@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="pool" name="ITIL Incident Management" processRef="Process_1" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_1">
+    <bpmn:lane id="product" name="Product Management">
+      <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>task1</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>task13</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+    </bpmn:lane>
+    <bpmn:lane id="sales" name="Sales & Technical Sales">
+      <bpmn:flowNodeRef>task2</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>task3</bpmn:flowNodeRef>
+    </bpmn:lane>
+    <bpmn:lane id="customer_success" name="Customer Success Management">
+      <bpmn:flowNodeRef>task4</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>task12</bpmn:flowNodeRef>
+    </bpmn:lane>
+    <bpmn:lane id="service_delivery" name="Service Delivery Management">
+      <bpmn:flowNodeRef>task5</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>task9</bpmn:flowNodeRef>
+      <bpmn:flowNodeRef>task10</bpmn:flowNodeRef>
+    </bpmn:lane>
+    <bpmn:lane id="construction" name="Construction & DC Engineering">
+      <bpmn:flowNodeRef>task6</bpmn:flowNodeRef>
+    </bpmn:lane>
+    <bpmn:lane id="procurement" name="Procurement">
+      <bpmn:flowNodeRef>task7</bpmn:flowNodeRef>
+    </bpmn:lane>
+    <bpmn:lane id="network" name="Network Operations">
+      <bpmn:flowNodeRef>task8</bpmn:flowNodeRef>
+    </bpmn:lane>
+    <bpmn:lane id="finance" name="Finance">
+      <bpmn:flowNodeRef>task11</bpmn:flowNodeRef>
+    </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="start1" name="Value Chain Start">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="task1" name="Product & Service Portfolio">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task2" name="Market & Demand Management">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task3" name="Marketing Sales & Order Management">
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task4" name="Customer Success (Key Account)">
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task5" name="Service Delivery Coordination">
+      <bpmn:incoming>f5</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task6" name="Data Center Acquisition & Design">
+      <bpmn:incoming>f6</bpmn:incoming>
+      <bpmn:outgoing>f7</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task7" name="Sourcing & Inbound Logistics">
+      <bpmn:incoming>f7</bpmn:incoming>
+      <bpmn:outgoing>f8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task8" name="Service Enablement & Operations">
+      <bpmn:incoming>f8</bpmn:incoming>
+      <bpmn:outgoing>f9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task9" name="Provisioning & Onboarding">
+      <bpmn:incoming>f9</bpmn:incoming>
+      <bpmn:outgoing>f10</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task10" name="Customer Support & SLA Management">
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:outgoing>f11</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task11" name="Billing & Reporting">
+      <bpmn:incoming>f11</bpmn:incoming>
+      <bpmn:outgoing>f12</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task12" name="Customer Success & Retention">
+      <bpmn:incoming>f12</bpmn:incoming>
+      <bpmn:outgoing>f13</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="task13" name="Service Innovation & Improvement">
+      <bpmn:incoming>f13</bpmn:incoming>
+      <bpmn:outgoing>f14</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="end1" name="Value Chain End">
+      <bpmn:incoming>f14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="start1" targetRef="task1" />
+    <bpmn:sequenceFlow id="f2" sourceRef="task1" targetRef="task2" />
+    <bpmn:sequenceFlow id="f3" sourceRef="task2" targetRef="task3" />
+    <bpmn:sequenceFlow id="f4" sourceRef="task3" targetRef="task4" />
+    <bpmn:sequenceFlow id="f5" sourceRef="task4" targetRef="task5" />
+    <bpmn:sequenceFlow id="f6" sourceRef="task5" targetRef="task6" />
+    <bpmn:sequenceFlow id="f7" sourceRef="task6" targetRef="task7" />
+    <bpmn:sequenceFlow id="f8" sourceRef="task7" targetRef="task8" />
+    <bpmn:sequenceFlow id="f9" sourceRef="task8" targetRef="task9" />
+    <bpmn:sequenceFlow id="f10" sourceRef="task9" targetRef="task10" />
+    <bpmn:sequenceFlow id="f11" sourceRef="task10" targetRef="task11" />
+    <bpmn:sequenceFlow id="f12" sourceRef="task11" targetRef="task12" />
+    <bpmn:sequenceFlow id="f13" sourceRef="task12" targetRef="task13" />
+    <bpmn:sequenceFlow id="f14" sourceRef="task13" targetRef="end1" />
+  </bpmn:process>
+    <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="pool_di" bpmnElement="pool" isHorizontal="true">
+        <dc:Bounds x="150" y="280" width="1368" height="1420" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
+        <dc:Bounds x="180" y="80" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="product_di" bpmnElement="product" isHorizontal="true">
+        <dc:Bounds x="180" y="260" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sales_di" bpmnElement="sales" isHorizontal="true">
+        <dc:Bounds x="180" y="440" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="customer_success_di" bpmnElement="customer_success" isHorizontal="true">
+        <dc:Bounds x="180" y="620" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="service_delivery_di" bpmnElement="service_delivery" isHorizontal="true">
+        <dc:Bounds x="180" y="800" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="construction_di" bpmnElement="construction" isHorizontal="true">
+        <dc:Bounds x="180" y="980" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="procurement_di" bpmnElement="procurement" isHorizontal="true">
+        <dc:Bounds x="180" y="1160" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="network_di" bpmnElement="network" isHorizontal="true">
+        <dc:Bounds x="180" y="1340" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finance_di" bpmnElement="finance" isHorizontal="true">
+        <dc:Bounds x="180" y="1520" width="1338" height="180" />
+      </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start1">
+      <dc:Bounds x="232" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="222" y="373" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end1">
+      <dc:Bounds x="1432" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1422" y="373" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task1">
+      <dc:Bounds x="400" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="390" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task2">
+      <dc:Bounds x="400" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="390" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task3">
+      <dc:Bounds x="600" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task4">
+      <dc:Bounds x="600" y="670" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="755" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task5">
+      <dc:Bounds x="600" y="850" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="935" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task6">
+      <dc:Bounds x="600" y="1030" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="1115" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task7">
+      <dc:Bounds x="600" y="1210" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="1295" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task8">
+      <dc:Bounds x="600" y="1390" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="1475" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task9">
+      <dc:Bounds x="800" y="850" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="825" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task10">
+      <dc:Bounds x="1000" y="850" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="990" y="935" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task11">
+      <dc:Bounds x="1000" y="1570" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="990" y="1655" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task12">
+      <dc:Bounds x="1200" y="670" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1190" y="645" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task13">
+      <dc:Bounds x="1200" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1190" y="285" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="f1">
+      <di:waypoint x="268" y="350"/>
+      <di:waypoint x="400" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f2">
+      <di:waypoint x="450" y="390"/>
+      <di:waypoint x="450" y="490"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f3">
+      <di:waypoint x="500" y="530"/>
+      <di:waypoint x="600" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f4">
+      <di:waypoint x="650" y="570"/>
+      <di:waypoint x="650" y="670"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f5">
+      <di:waypoint x="650" y="750"/>
+      <di:waypoint x="650" y="850"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f6">
+      <di:waypoint x="650" y="930"/>
+      <di:waypoint x="650" y="1030"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f7">
+      <di:waypoint x="650" y="1110"/>
+      <di:waypoint x="650" y="1210"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f8">
+      <di:waypoint x="650" y="1290"/>
+      <di:waypoint x="650" y="1390"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f9">
+      <di:waypoint x="700" y="1430"/>
+      <di:waypoint x="850" y="1430"/>
+      <di:waypoint x="850" y="930"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f10">
+      <di:waypoint x="900" y="890"/>
+      <di:waypoint x="1000" y="890"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f11">
+      <di:waypoint x="1050" y="930"/>
+      <di:waypoint x="1050" y="1570"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f12">
+      <di:waypoint x="1100" y="1610"/>
+      <di:waypoint x="1250" y="1610"/>
+      <di:waypoint x="1250" y="750"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f13">
+      <di:waypoint x="1250" y="670"/>
+      <di:waypoint x="1250" y="390"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f14">
+      <di:waypoint x="1300" y="350"/>
+      <di:waypoint x="1432" y="350"/>
+    </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
