@@ -395,32 +395,43 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   
   const targetIsLeft = targetPos.layer < sourcePos.layer;
   
-  // Choose best exit side (prefer UP for backflows going left)
+  // Choose best exit side for backflows
   let exitSide;
   
-  // For backflows going left (target.layer < source.layer), prefer UP to use corridor
-  if (targetIsLeft && !usedSides.has(directions.oppCrossLane)) {
-    // Backflow going left → go UP to corridor first
-    exitSide = directions.oppCrossLane; // up
-  }
-  // Priority 2: UP if target is above
-  else if (targetIsAbove && !usedSides.has(directions.oppCrossLane)) {
-    exitSide = directions.oppCrossLane; // up
-  }
-  // Priority 3: DOWN if target is below
-  else if (targetIsBelow && !usedSides.has(directions.crossLane)) {
-    exitSide = directions.crossLane; // down
-  }
-  // Fallback: use any free side, prefer up over down over right
-  else {
+  // Strategy:
+  // 1. Same lane: ALWAYS go UP (flows normally go down, so up is free)
+  // 2. Cross-lane: Check if target is above or below
+  //    - Target above → go UP
+  //    - Target below → go DOWN
+  // 3. Fallback: prefer UP (corridor above)
+  
+  if (sourcePos.lane === targetPos.lane) {
+    // Same lane: ALWAYS go UP to avoid conflicts with normal downward flows
     if (!usedSides.has(directions.oppCrossLane)) {
       exitSide = directions.oppCrossLane; // up
+    } else {
+      // UP is blocked, try DOWN
+      exitSide = directions.crossLane; // down
+    }
+  } else {
+    // Cross-lane: choose based on target vertical position
+    if (targetIsAbove && !usedSides.has(directions.oppCrossLane)) {
+      // Target is above → go UP
+      exitSide = directions.oppCrossLane; // up
+    } else if (targetIsBelow && !usedSides.has(directions.crossLane)) {
+      // Target is below → go DOWN
+      exitSide = directions.crossLane; // down
+    } else if (!usedSides.has(directions.oppCrossLane)) {
+      // Fallback: prefer UP
+      exitSide = directions.oppCrossLane; // up
     } else if (!usedSides.has(directions.crossLane)) {
+      // Fallback: DOWN
       exitSide = directions.crossLane; // down
     } else if (!usedSides.has(directions.alongLane)) {
+      // Last resort: RIGHT
       exitSide = directions.alongLane; // right
     } else {
-      // All sides used, default to up (for backflows)
+      // All sides used, default to UP
       exitSide = directions.oppCrossLane;
     }
   }
