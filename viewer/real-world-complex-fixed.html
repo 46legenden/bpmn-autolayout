@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BPMN Viewer - Real World Complex (FIXED)</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+    }
+    #canvas {
+      border: 1px solid #ccc;
+      width: 100%;
+      height: 800px;
+    }
+    h1 {
+      margin-top: 0;
+      color: #2ecc71;
+    }
+    .fix-note {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+  </style>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+</head>
+<body>
+  <h1>✅ BPMN Viewer - Real World Complex (FIXED)</h1>
+  <div class="fix-note">
+    <strong>Fixed:</strong> Layer blocking issue resolved!<br>
+    - task3 moved to Layer 2 (was Layer 1)<br>
+    - No more conflicting cross-lane flows in same layer
+  </div>
+  <div id="canvas"></div>
+
+  <script>
+    const viewer = new BpmnJS({
+      container: '#canvas'
+    });
+
+    fetch('output-real-world-complex-fixed-1765735564.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          viewer.get('canvas').zoom('fit-viewport');
+        });
+      })
+      .catch(err => {
+        console.error('Error loading diagram:', err);
+        document.getElementById('canvas').innerHTML = '<p style="color: red;">Error loading diagram: ' + err.message + '</p>';
+      });
+  </script>
+</body>
+</html>

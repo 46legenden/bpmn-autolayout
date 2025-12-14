@@ -314,11 +314,11 @@
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f20">
-      <di:waypoint x="2650" y="490"/>
-      <di:waypoint x="2650" y="465"/>
-      <di:waypoint x="650" y="465"/>
-      <di:waypoint x="650" y="490"/>
-      <di:waypoint x="650" y="490"/>
+      <di:waypoint x="2700" y="530"/>
+      <di:waypoint x="2700" y="395"/>
+      <di:waypoint x="650" y="395"/>
+      <di:waypoint x="650" y="570"/>
+      <di:waypoint x="650" y="570"/>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="f21">
       <di:waypoint x="2700" y="890"/>

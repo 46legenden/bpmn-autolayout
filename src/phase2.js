@@ -245,7 +245,7 @@ export function createSameLaneFlowInfo(flowId, sourceId, targetId, positions, di
 }
 
 /**
- * Check if cross-lane path is free (no elements in between)
+ * Check if cross-lane path is free (no elements in between AND no conflicting cross-lane flow)
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
  * @param {Map} positions - Positions map
@@ -264,9 +264,14 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
 
   const minLaneIndex = Math.min(sourceLaneIndex, targetLaneIndex);
   const maxLaneIndex = Math.max(sourceLaneIndex, targetLaneIndex);
+  
+  // Determine the direction of this cross-lane flow
+  const flowDirection = targetLaneIndex > sourceLaneIndex ? 'down' : 'up';
 
-  // Check all lanes between source and target
+  // Check all lanes between source and target (and including source/target lanes for flow direction check)
   const laneIds = Array.from(lanes.keys());
+  
+  // Check intermediate lanes for elements
   for (let i = minLaneIndex + 1; i < maxLaneIndex; i++) {
     const laneId = laneIds[i];
     const laneMatrix = matrix.get(laneId);
@@ -274,7 +279,24 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
     if (laneMatrix && laneMatrix.has(sourcePos.layer)) {
       const cell = laneMatrix.get(sourcePos.layer);
       if (cell && cell.elements && cell.elements.length > 0) {
-        return false;  // Path is blocked
+        return false;  // Path is blocked by elements
+      }
+    }
+  }
+  
+  // Check ALL lanes (including source and target) for conflicting cross-lane flows
+  for (let i = minLaneIndex; i <= maxLaneIndex; i++) {
+    const laneId = laneIds[i];
+    const laneMatrix = matrix.get(laneId);
+    
+    if (laneMatrix && laneMatrix.has(sourcePos.layer)) {
+      const cell = laneMatrix.get(sourcePos.layer);
+      if (cell && cell.flowCrossLane) {
+        // There's already a cross-lane flow in this layer
+        // Check if it's in the opposite direction
+        if (cell.flowCrossLane !== flowDirection) {
+          return false;  // Path is blocked by conflicting cross-lane flow
+        }
       }
     }
   }
@@ -1309,12 +1331,35 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
             directions
           );
           flowInfos.set(flowId, flowInfo);
+          
+          // Update matrix to track cross-lane flow direction
+          const sourcePos = positions.get(sourceId);
+          const sourceLane = elementLanes.get(sourceId);
+          const targetLane = elementLanes.get(targetId);
+          const sourceLaneIndex = getLaneIndex(sourceLane, lanes);
+          const targetLaneIndex = getLaneIndex(targetLane, lanes);
+          const flowDirection = targetLaneIndex > sourceLaneIndex ? 'down' : 'up';
+          
+          // Mark all lanes in the path with this flow direction
+          const laneIds = Array.from(lanes.keys());
+          const minLaneIndex = Math.min(sourceLaneIndex, targetLaneIndex);
+          const maxLaneIndex = Math.max(sourceLaneIndex, targetLaneIndex);
+          
+          for (let i = minLaneIndex; i <= maxLaneIndex; i++) {
+            const laneId = laneIds[i];
+            const laneMatrix = matrix.get(laneId);
+            if (!laneMatrix.has(sourcePos.layer)) {
+              laneMatrix.set(sourcePos.layer, { elements: [], flowAlongLane: null, flowCrossLane: null });
+            }
+            const cell = laneMatrix.get(sourcePos.layer);
+            cell.flowCrossLane = flowDirection;
+          }
         } else {
           // Blocked path - L-shaped with waypoint
           assignCrossLaneBlockedPosition(sourceId, targetId, positions, elementLanes);
           
           // Check if source is a gateway
-          const sourceEl = elements.find(e => e.id === sourceId);
+          const sourceEl = elements.get(sourceId);
           const isGatewaySource = sourceEl && sourceEl.type && sourceEl.type.includes('Gateway');
           
           const flowInfo = createCrossLaneBlockedFlowInfo(

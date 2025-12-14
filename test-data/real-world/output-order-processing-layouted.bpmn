@@ -168,9 +168,9 @@
     <bpmndi:BPMNEdge bpmnElement="f_reject">
       <di:waypoint x="1050" y="325"/>
       <di:waypoint x="1050" y="285"/>
-      <di:waypoint x="334" y="285"/>
-      <di:waypoint x="334" y="170"/>
-      <di:waypoint x="400" y="170"/>
+      <di:waypoint x="450" y="285"/>
+      <di:waypoint x="450" y="130"/>
+      <di:waypoint x="450" y="130"/>
       <bpmndi:BPMNLabel>
         <dc:Bounds x="1050" y="305" width="50" height="20" />
       </bpmndi:BPMNLabel>

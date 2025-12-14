@@ -353,8 +353,9 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   const sourcePos = positions.get(flowInfo.sourceId);
   const targetPos = positions.get(flowInfo.targetId);
   
-  // Determine target's entry side (same as normal flows)
-  const targetEntrySide = determineTargetEntrySide(flowInfo.targetId, flowInfos, directions);
+  // Determine target's entry side
+  // For backflows going left (backwards), always enter from TOP to use corridor
+  const targetEntrySide = directions.oppCrossLane; // "up" - backflows come down from corridor above
   
   const waypoints = [];
   
@@ -394,20 +395,24 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
   
   const targetIsLeft = targetPos.layer < sourcePos.layer;
   
-  // Choose best exit side (prefer direction towards target, avoid used sides)
+  // Choose best exit side (prefer UP for backflows going left)
   let exitSide;
   
-  if (targetIsAbove && !usedSides.has(directions.oppCrossLane)) {
-    // Target is above, try UP
+  // For backflows going left (target.layer < source.layer), prefer UP to use corridor
+  if (targetIsLeft && !usedSides.has(directions.oppCrossLane)) {
+    // Backflow going left → go UP to corridor first
     exitSide = directions.oppCrossLane; // up
-  } else if (targetIsBelow && !usedSides.has(directions.crossLane)) {
-    // Target is below, try DOWN
+  }
+  // Priority 2: UP if target is above
+  else if (targetIsAbove && !usedSides.has(directions.oppCrossLane)) {
+    exitSide = directions.oppCrossLane; // up
+  }
+  // Priority 3: DOWN if target is below
+  else if (targetIsBelow && !usedSides.has(directions.crossLane)) {
     exitSide = directions.crossLane; // down
-  } else if (targetIsLeft && !usedSides.has(directions.alongLane)) {
-    // Target is left, try RIGHT (to go around)
-    exitSide = directions.alongLane; // right
-  } else {
-    // Fallback: use any free side, prefer up/down over right
+  }
+  // Fallback: use any free side, prefer up over down over right
+  else {
     if (!usedSides.has(directions.oppCrossLane)) {
       exitSide = directions.oppCrossLane; // up
     } else if (!usedSides.has(directions.crossLane)) {
@@ -415,8 +420,8 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
     } else if (!usedSides.has(directions.alongLane)) {
       exitSide = directions.alongLane; // right
     } else {
-      // All sides used, default to down
-      exitSide = directions.crossLane;
+      // All sides used, default to up (for backflows)
+      exitSide = directions.oppCrossLane;
     }
   }
   
