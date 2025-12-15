@@ -39,9 +39,23 @@ export function parseXML(bpmnXml) {
     
     // Valid BPMN element types (case-sensitive!)
     const validTypes = [
-      'startEvent', 'endEvent', 'task', 'userTask', 'serviceTask',
-      'exclusiveGateway', 'parallelGateway', 'inclusiveGateway',
-      'sequenceFlow', 'lane'
+      // Events
+      'startEvent', 'endEvent', 'intermediateThrowEvent', 'intermediateCatchEvent', 'boundaryEvent',
+      // Tasks
+      'task', 'userTask', 'serviceTask', 'manualTask', 'sendTask', 'receiveTask', 
+      'scriptTask', 'businessRuleTask', 'callActivity',
+      // Sub-processes
+      'subProcess', 'transaction', 'adHocSubProcess',
+      // Gateways
+      'exclusiveGateway', 'parallelGateway', 'inclusiveGateway', 'eventBasedGateway', 'complexGateway',
+      // Flows
+      'sequenceFlow', 'messageFlow',
+      // Swimlanes
+      'lane', 'participant',
+      // Data elements
+      'dataObject', 'dataObjectReference', 'dataStore', 'dataStoreReference',
+      // Artifacts
+      'textAnnotation', 'group', 'association'
     ];
 
     // Simple regex-based parsing (for now)
@@ -106,8 +120,24 @@ export function parseXML(bpmnXml) {
       }
     }
 
+    // Extract sub-processes
+    const subProcessTypes = ['subProcess', 'transaction', 'adHocSubProcess'];
+    for (const spType of subProcessTypes) {
+      const spRegex = new RegExp(`<bpmn:${spType}[^>]*id="([^"]+)"[^>]*>`, 'g');
+      while ((match = spRegex.exec(bpmnXml)) !== null) {
+        const id = match[1];
+        elements.set(id, {
+          id,
+          type: spType,
+          name: extractName(bpmnXml, id),
+          incoming: [],
+          outgoing: []
+        });
+      }
+    }
+
     // Extract gateways
-    const gatewayTypes = ['exclusiveGateway', 'parallelGateway', 'inclusiveGateway'];
+    const gatewayTypes = ['exclusiveGateway', 'parallelGateway', 'inclusiveGateway', 'eventBasedGateway', 'complexGateway'];
     for (const gwType of gatewayTypes) {
       const gwRegex = new RegExp(`<bpmn:${gwType}[^>]*id="([^"]+)"[^>]*>`, 'g');
       while ((match = gwRegex.exec(bpmnXml)) !== null) {
@@ -142,6 +172,64 @@ export function parseXML(bpmnXml) {
       }
     }
 
+    // Extract message flows
+    const messageFlowRegex = /<bpmn:messageFlow[^>]*id="([^"]+)"[^>]*sourceRef="([^"]+)"[^>]*targetRef="([^"]+)"[^>]*>/g;
+    while ((match = messageFlowRegex.exec(bpmnXml)) !== null) {
+      const [, id, sourceRef, targetRef] = match;
+      flows.set(id, {
+        id,
+        sourceRef,
+        targetRef,
+        type: 'messageFlow',
+        name: extractName(bpmnXml, id)
+      });
+    }
+
+    // Extract data objects
+    const dataObjectTypes = ['dataObject', 'dataObjectReference', 'dataStore', 'dataStoreReference'];
+    for (const dataType of dataObjectTypes) {
+      const dataRegex = new RegExp(`<bpmn:${dataType}[^>]*id="([^"]+)"[^>]*>`, 'g');
+      while ((match = dataRegex.exec(bpmnXml)) !== null) {
+        const id = match[1];
+        elements.set(id, {
+          id,
+          type: dataType,
+          name: extractName(bpmnXml, id),
+          incoming: [],
+          outgoing: []
+        });
+      }
+    }
+
+    // Extract artifacts (text annotations, groups)
+    const artifactTypes = ['textAnnotation', 'group'];
+    for (const artifactType of artifactTypes) {
+      const artifactRegex = new RegExp(`<bpmn:${artifactType}[^>]*id="([^"]+)"[^>]*>`, 'g');
+      while ((match = artifactRegex.exec(bpmnXml)) !== null) {
+        const id = match[1];
+        elements.set(id, {
+          id,
+          type: artifactType,
+          name: extractName(bpmnXml, id),
+          incoming: [],
+          outgoing: []
+        });
+      }
+    }
+
+    // Extract associations (dotted lines connecting artifacts)
+    const associationRegex = /<bpmn:association[^>]*id="([^"]+)"[^>]*sourceRef="([^"]+)"[^>]*targetRef="([^"]+)"[^>]*>/g;
+    while ((match = associationRegex.exec(bpmnXml)) !== null) {
+      const [, id, sourceRef, targetRef] = match;
+      flows.set(id, {
+        id,
+        sourceRef,
+        targetRef,
+        type: 'association',
+        name: extractName(bpmnXml, id)
+      });
+    }
+
     // Extract lanes
     const laneRegex = /<bpmn:lane[^>]*id="([^"]+)"[^>]*>/g;
     while ((match = laneRegex.exec(bpmnXml)) !== null) {
@@ -150,6 +238,21 @@ export function parseXML(bpmnXml) {
         id,
         name: extractName(bpmnXml, id),
         elements: extractLaneElements(bpmnXml, id)
+      });
+    }
+
+    // Extract participants (pools)
+    const participantRegex = /<bpmn:participant[^>]*id="([^"]+)"[^>]*>/g;
+    while ((match = participantRegex.exec(bpmnXml)) !== null) {
+      const id = match[1];
+      // Note: Participants are containers, not flow objects
+      // Store them separately if needed for pool-based layout
+      elements.set(id, {
+        id,
+        type: 'participant',
+        name: extractName(bpmnXml, id),
+        incoming: [],
+        outgoing: []
       });
     }
 

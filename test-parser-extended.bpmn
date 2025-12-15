@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   id="Definitions_1">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- Start Event -->
+    <bpmn:startEvent id="start1" name="Start" />
+    
+    <!-- Tasks -->
+    <bpmn:task id="task1" name="Basic Task" />
+    <bpmn:userTask id="userTask1" name="User Task" />
+    <bpmn:serviceTask id="serviceTask1" name="Service Task" />
+    
+    <!-- NEW: Sub-Process -->
+    <bpmn:subProcess id="subProcess1" name="Sub Process">
+      <bpmn:startEvent id="subStart" />
+      <bpmn:task id="subTask" />
+      <bpmn:endEvent id="subEnd" />
+    </bpmn:subProcess>
+    
+    <!-- NEW: Event-Based Gateway -->
+    <bpmn:eventBasedGateway id="eventGw1" name="Event Gateway" />
+    
+    <!-- NEW: Complex Gateway -->
+    <bpmn:complexGateway id="complexGw1" name="Complex Gateway" />
+    
+    <!-- Regular Gateways -->
+    <bpmn:exclusiveGateway id="xorGw1" name="XOR" />
+    <bpmn:parallelGateway id="andGw1" name="AND" />
+    
+    <!-- NEW: Data Objects -->
+    <bpmn:dataObject id="dataObj1" name="Data Object 1" />
+    <bpmn:dataObjectReference id="dataObjRef1" name="Data Ref" dataObjectRef="dataObj1" />
+    
+    <!-- NEW: Data Store -->
+    <bpmn:dataStore id="dataStore1" name="Database" />
+    <bpmn:dataStoreReference id="dataStoreRef1" name="DB Ref" dataStoreRef="dataStore1" />
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="end1" name="End" />
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow1" sourceRef="start1" targetRef="task1" />
+    <bpmn:sequenceFlow id="flow2" sourceRef="task1" targetRef="userTask1" />
+    <bpmn:sequenceFlow id="flow3" sourceRef="userTask1" targetRef="subProcess1" />
+    <bpmn:sequenceFlow id="flow4" sourceRef="subProcess1" targetRef="eventGw1" />
+    <bpmn:sequenceFlow id="flow5" sourceRef="eventGw1" targetRef="end1" />
+    
+    <!-- NEW: Association (for data) -->
+    <bpmn:association id="assoc1" sourceRef="task1" targetRef="dataObjRef1" />
+  </bpmn:process>
+  
+  <!-- NEW: Text Annotation -->
+  <bpmn:textAnnotation id="annotation1">
+    <bpmn:text>This is a note</bpmn:text>
+  </bpmn:textAnnotation>
+  
+  <!-- NEW: Group -->
+  <bpmn:group id="group1" />
+  
+  <!-- NEW: Participant (Pool) -->
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="participant1" name="Customer Pool" processRef="Process_1" />
+    <bpmn:participant id="participant2" name="System Pool" />
+    
+    <!-- NEW: Message Flow -->
+    <bpmn:messageFlow id="msgFlow1" sourceRef="task1" targetRef="participant2" />
+  </bpmn:collaboration>
+</bpmn:definitions>
