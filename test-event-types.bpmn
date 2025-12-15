@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   id="Definitions_EventTypes">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <!-- None Start Event -->
+    <bpmn:startEvent id="start_none" name="None Start" />
+    
+    <!-- Message Start Event -->
+    <bpmn:startEvent id="start_message" name="Message Start">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    
+    <!-- Timer Start Event -->
+    <bpmn:startEvent id="start_timer" name="Timer Start">
+      <bpmn:timerEventDefinition />
+    </bpmn:startEvent>
+    
+    <!-- Signal Start Event -->
+    <bpmn:startEvent id="start_signal" name="Signal Start">
+      <bpmn:signalEventDefinition />
+    </bpmn:startEvent>
+    
+    <!-- Task -->
+    <bpmn:task id="task1" name="Do Something" />
+    
+    <!-- Intermediate Message Catch Event -->
+    <bpmn:intermediateCatchEvent id="int_message" name="Wait for Message">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    
+    <!-- Intermediate Timer Event -->
+    <bpmn:intermediateCatchEvent id="int_timer" name="Wait 5 Minutes">
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    
+    <!-- Intermediate Signal Throw Event -->
+    <bpmn:intermediateThrowEvent id="int_signal_throw" name="Send Signal">
+      <bpmn:signalEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    
+    <!-- Boundary Error Event -->
+    <bpmn:boundaryEvent id="boundary_error" name="On Error" attachedToRef="task1">
+      <bpmn:errorEventDefinition />
+    </bpmn:boundaryEvent>
+    
+    <!-- Boundary Timer Event -->
+    <bpmn:boundaryEvent id="boundary_timer" name="Timeout" attachedToRef="task1">
+      <bpmn:timerEventDefinition />
+    </bpmn:boundaryEvent>
+    
+    <!-- None End Event -->
+    <bpmn:endEvent id="end_none" name="None End" />
+    
+    <!-- Message End Event -->
+    <bpmn:endEvent id="end_message" name="Message End">
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    
+    <!-- Error End Event -->
+    <bpmn:endEvent id="end_error" name="Error End">
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    
+    <!-- Terminate End Event -->
+    <bpmn:endEvent id="end_terminate" name="Terminate End">
+      <bpmn:terminateEventDefinition />
+    </bpmn:endEvent>
+    
+    <!-- Escalation End Event -->
+    <bpmn:endEvent id="end_escalation" name="Escalation End">
+      <bpmn:escalationEventDefinition />
+    </bpmn:endEvent>
+    
+    <!-- Flows -->
+    <bpmn:sequenceFlow id="flow1" sourceRef="start_none" targetRef="task1" />
+    <bpmn:sequenceFlow id="flow2" sourceRef="task1" targetRef="end_none" />
+  </bpmn:process>
+</bpmn:definitions>

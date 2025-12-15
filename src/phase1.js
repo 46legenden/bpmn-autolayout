@@ -69,6 +69,7 @@ export function parseXML(bpmnXml) {
       elements.set(id, {
         id,
         type: 'startEvent',
+        eventType: extractEventType(bpmnXml, id),
         name: extractName(bpmnXml, id),
         incoming: [],
         outgoing: []
@@ -82,6 +83,7 @@ export function parseXML(bpmnXml) {
       elements.set(id, {
         id,
         type: 'endEvent',
+        eventType: extractEventType(bpmnXml, id),
         name: extractName(bpmnXml, id),
         incoming: [],
         outgoing: []
@@ -97,6 +99,7 @@ export function parseXML(bpmnXml) {
         elements.set(id, {
           id,
           type: eventType,
+          eventType: extractEventType(bpmnXml, id),
           name: extractName(bpmnXml, id),
           incoming: [],
           outgoing: []
@@ -286,6 +289,60 @@ function extractName(xml, id) {
   const nameRegex = new RegExp(`id="${id}"[^>]*name="([^"]+)"`, 'i');
   const match = nameRegex.exec(xml);
   return match ? match[1] : '';
+}
+
+/**
+ * Extract event trigger type (eventDefinition) from event element
+ * Returns 'none' if no event definition found
+ */
+function extractEventType(xml, eventId) {
+  // Find the specific event element block by ID
+  // Handle both self-closing tags (<...  />) and regular tags (<...>...</...>)
+  
+  // First try self-closing tag
+  const selfClosingPattern = new RegExp(
+    `<bpmn:\\w+Event[^>]*id="${eventId}"[^>]*/>`
+  );
+  const selfClosingMatch = xml.match(selfClosingPattern);
+  
+  if (selfClosingMatch) {
+    // Self-closing tag has no content, so no event definition
+    return 'none';
+  }
+  
+  // Try regular opening/closing tags
+  const eventPattern = new RegExp(
+    `<bpmn:(\\w+Event)[^>]*id="${eventId}"[^>]*>([\\s\\S]*?)</bpmn:\\1>`,
+    'i'
+  );
+  const eventMatch = xml.match(eventPattern);
+  
+  if (!eventMatch) return 'none';
+  
+  const eventBlock = eventMatch[2];  // Group 2 is the content, group 1 is the event type
+  
+  // Check for event definition elements (order matters for specificity)
+  const eventDefinitions = [
+    'messageEventDefinition',
+    'timerEventDefinition',
+    'errorEventDefinition',
+    'escalationEventDefinition',
+    'signalEventDefinition',
+    'conditionalEventDefinition',
+    'compensateEventDefinition',
+    'cancelEventDefinition',
+    'linkEventDefinition',
+    'terminateEventDefinition'
+  ];
+  
+  for (const defType of eventDefinitions) {
+    if (eventBlock.includes(`<bpmn:${defType}`)) {
+      // Return just the trigger type (remove 'EventDefinition' suffix)
+      return defType.replace('EventDefinition', '');
+    }
+  }
+  
+  return 'none';
 }
 
 /**
