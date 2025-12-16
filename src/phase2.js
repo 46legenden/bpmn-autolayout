@@ -10,6 +10,8 @@
  */
 
 import { calculateWaypoint } from './waypoint-helper.js';
+import { checkAllCollisions } from './collision-checker.js';
+import { assignRows } from './row-assigner.js';
 
 // Module-level variable to store pools for getLaneIndex
 let _pools = new Map();
@@ -1161,9 +1163,11 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
   const adjusted = new Set();
   
   // Build map of ALL inputs per element (not just cross-lane)
+  // Exclude message flows - they don't constrain layer positioning
   const allInputs = new Map();
   for (const [flowId, flow] of flows) {
     if (backEdgeSet.has(flowId)) continue;
+    if (flow.type === 'messageFlow') continue; // Skip message flows
     
     const targetId = flow.targetRef;
     if (!allInputs.has(targetId)) {
@@ -1211,10 +1215,13 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
         continue;
       }
       
-      // For non-gateway inputs: adjust to max + 1
+      // For non-gateway inputs: adjust to max + 1 ONLY if multiple inputs
+      // Single input should stay in same layer (direct cross-lane flow)
       if (inputLayers.length > 0) {
         const maxInputLayer = Math.max(...inputLayers);
-        const requiredLayer = maxInputLayer + 1;
+        // Only add +1 for multiple inputs (to avoid collisions)
+        // Single input: stay in same layer (direct vertical flow)
+        const requiredLayer = inputLayers.length > 1 ? maxInputLayer + 1 : maxInputLayer;
         
         // Only adjust if element is too early
         if (pos.layer < requiredLayer) {
@@ -1229,7 +1236,7 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
   // If an element's layer was increased, all elements that depend on it
   // (i.e., have it as input) must also be shifted
   if (adjusted.size > 0) {
-    propagateLayerChanges(positions, flows, adjusted, backEdgeSet);
+    propagateLayerChanges(positions, flows, adjusted, backEdgeSet, elementLanes);
   }
 }
 
@@ -1240,9 +1247,11 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
  * @param {Set} adjustedElements - Set of element IDs that had their layer increased
  * @param {Set} backEdgeSet - Set of back edge flow IDs
  */
-function propagateLayerChanges(positions, flows, adjustedElements, backEdgeSet) {
+function propagateLayerChanges(positions, flows, adjustedElements, backEdgeSet, elementLanes) {
   // Build dependency graph: element -> elements that depend on it
+  // Track which flows are cross-lane
   const dependents = new Map();
+  const crossLaneFlows = new Set();
   
   for (const [flowId, flow] of flows) {
     if (backEdgeSet.has(flowId)) continue;
@@ -1254,6 +1263,13 @@ function propagateLayerChanges(positions, flows, adjustedElements, backEdgeSet) 
       dependents.set(sourceId, []);
     }
     dependents.get(sourceId).push(targetId);
+    
+    // Check if this is a cross-lane flow
+    const sourceLane = elementLanes.get(sourceId);
+    const targetLane = elementLanes.get(targetId);
+    if (sourceLane !== targetLane) {
+      crossLaneFlows.add(`${sourceId}->${targetId}`);
+    }
   }
   
   // Recursively update dependent elements
@@ -1272,8 +1288,13 @@ function propagateLayerChanges(positions, flows, adjustedElements, backEdgeSet) 
       const depPos = positions.get(depId);
       if (!depPos) continue;
       
-      // Ensure dependent is at least one layer after source
-      const minLayer = sourcePos.layer + 1;
+      // Check if this is a cross-lane flow
+      const isCrossLane = crossLaneFlows.has(`${elementId}->${depId}`);
+      
+      // For cross-lane flows: allow same layer (direct vertical flow)
+      // For same-lane flows: require layer + 1 (horizontal progression)
+      const minLayer = isCrossLane ? sourcePos.layer : sourcePos.layer + 1;
+      
       if (depPos.layer < minLayer) {
         depPos.layer = minLayer;
         // Recursively update this element's dependents
@@ -1398,6 +1419,9 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
   // Convert backEdges array to Set for fast lookup
   const backEdgeSet = new Set(backEdges);
   
+  // Step 3.5: Message flows are handled separately (no pre-positioning)
+  // Message catch events will be positioned by their outgoing sequence flows
+  
   // Step 4: Process all flows in topological order
   const sortedFlows = topologicalSortFlows(flows, elements, backEdgeSet);
   
@@ -1413,6 +1437,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
       // Back-flows are marked but not routed in Phase 2
       const flowInfo = createBackFlowInfo(flowId, sourceId, targetId, positions, elementLanes, lanes, directions);
       flowInfos.set(flowId, flowInfo);
+      if (DEBUG) console.log(`  ${flowId}: ${sourceId} -> ${targetId} (BACK-EDGE - skipped)`);
       continue;
     }
     
@@ -1479,6 +1504,11 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
       flowInfo.gatewayOptimized = (layerOffset === 0);
       flowInfos.set(flowId, flowInfo);
       
+      if (DEBUG) {
+        const targetPos = positions.get(targetId);
+        console.log(`  ${flowId}: ${sourceId} -> ${targetId} (gateway output, layer ${targetPos?.layer})`);
+      }
+      
     } else {
       // Regular flow (not gateway output)
       
@@ -1517,6 +1547,11 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
             directions
           );
           flowInfos.set(flowId, flowInfo);
+          
+          if (DEBUG) {
+            const targetPos = positions.get(targetId);
+            console.log(`  ${flowId}: ${sourceId} -> ${targetId} (cross-lane free, layer ${targetPos?.layer})`);
+          }
           
           // Update matrix to track cross-lane flow direction
           const sourcePos = positions.get(sourceId);
@@ -1559,6 +1594,11 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
             isGatewaySource
           );
           flowInfos.set(flowId, flowInfo);
+          
+          if (DEBUG) {
+            const targetPos = positions.get(targetId);
+            console.log(`  ${flowId}: ${sourceId} -> ${targetId} (cross-lane blocked, layer ${targetPos?.layer})`);
+          }
         }
       } else {
         // Same-lane flow
@@ -1578,11 +1618,53 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
     }
   }
   
-  // Step 5: Adjust layers for elements with multiple cross-lane inputs
+  // Step 5: Create FlowInfos for message flows (direct routing, no waypoints)
+  for (const [flowId, flow] of flows) {
+    if (flow.type === 'messageFlow') {
+      const sourceId = flow.sourceRef;
+      const targetId = flow.targetRef;
+      
+      const sourcePos = positions.get(sourceId);
+      const targetPos = positions.get(targetId);
+      
+      if (sourcePos && targetPos) {
+        // Create simple flowInfo for message flow
+        const flowInfo = {
+          flowId,
+          sourceId,
+          targetId,
+          isMessageFlow: true,
+          isBackFlow: false,
+          source: {
+            lane: sourcePos.lane,
+            layer: sourcePos.layer,
+            row: sourcePos.row,
+            exitSide: directions.crossLane // Default exit side (down for horizontal)
+          },
+          target: {
+            lane: targetPos.lane,
+            layer: targetPos.layer,
+            row: targetPos.row,
+            entrySide: directions.crossLane // Default entry side
+          },
+          waypoints: [] // No intermediate waypoints for message flows
+        };
+        flowInfos.set(flowId, flowInfo);
+      }
+    }
+  }
+  
+  // Step 6: Adjust layers for elements with multiple cross-lane inputs
   adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, elements);
   
-  // Step 6: Update FlowInfos with adjusted positions
+  // Step 6.5: Assign rows to prevent collisions
+  assignRows(positions, flows);
+  
+  // Step 7: Update FlowInfos with adjusted positions
   updateFlowInfosWithAdjustedPositions(flowInfos, positions, elements, lanes, directions);
+  
+  // Step 8: Check for collisions (debugging)
+  checkAllCollisions(positions, flows);
   
   return {
     positions,

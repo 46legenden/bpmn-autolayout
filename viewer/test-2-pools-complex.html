@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test 2 Pools Complex - Bidirectional Message Flows</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.development.js"></script>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+    h1 { margin: 0 0 20px 0; }
+    #canvas { border: 1px solid #ccc; height: 700px; }
+  </style>
+</head>
+<body>
+  <h1>Test 2 Pools Complex - Multiple Lanes + Bidirectional Message Flows</h1>
+  <div id="canvas"></div>
+  
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    
+    fetch('test-2-pools-complex-output.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          const canvas = viewer.get('canvas');
+          canvas.zoom('fit-viewport');
+        });
+      });
+  </script>
+</body>
+</html>

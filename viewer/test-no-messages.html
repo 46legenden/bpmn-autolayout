@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test No Messages - Two Independent Processes</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.development.js"></script>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+    h1 { margin: 0 0 20px 0; }
+    #canvas { border: 1px solid #ccc; height: 700px; }
+  </style>
+</head>
+<body>
+  <h1>Test No Messages - Two Independent Processes (No Message Flows)</h1>
+  <div id="canvas"></div>
+  
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    
+    fetch('test-no-messages-output.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          const canvas = viewer.get('canvas');
+          canvas.zoom('fit-viewport');
+        });
+      });
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BPMN Viewer</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #canvas { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="canvas"></div>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    fetch('integration-4outputs.bpmn')
+      .then(r => r.text())
+      .then(xml => viewer.importXML(xml))
+      .then(() => viewer.get('canvas').zoom('fit-viewport'))
+      .catch(err => console.error('Error:', err));
+  </script>
+</body>
+</html>

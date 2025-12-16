@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fake 2 Pools - Single Pool with 4 Lanes</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.development.js"></script>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+    h1 { margin: 0 0 20px 0; }
+    #canvas { border: 1px solid #ccc; height: 700px; }
+  </style>
+</head>
+<body>
+  <h1>Fake 2 Pools - Simulated with 4 Lanes + Normal Sequence Flows</h1>
+  <div id="canvas"></div>
+  
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    
+    fetch('test-fake-2-pools-output.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          const canvas = viewer.get('canvas');
+          canvas.zoom('fit-viewport');
+        });
+      });
+  </script>
+</body>
+</html>

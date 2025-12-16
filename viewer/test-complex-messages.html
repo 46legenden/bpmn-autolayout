@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Complex Messages Test - BPMN Auto-Layout</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+    h1 {
+      margin: 0 0 20px 0;
+      color: #333;
+    }
+    #canvas {
+      background: white;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+</head>
+<body>
+  <h1>Complex Messages Test - Multiple Bidirectional Message Flows</h1>
+  <div id="canvas"></div>
+
+  <script>
+    const viewer = new BpmnJS({
+      container: '#canvas',
+      width: '100%',
+      height: '800px'
+    });
+
+    fetch('test-complex-messages-output.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          const canvas = viewer.get('canvas');
+          canvas.zoom('fit-viewport');
+        }).catch(err => {
+          console.error('Error rendering BPMN:', err);
+        });
+      })
+      .catch(err => {
+        console.error('Error loading BPMN:', err);
+      });
+  </script>
+</body>
+</html>

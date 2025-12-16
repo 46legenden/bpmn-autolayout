@@ -59,9 +59,24 @@ export function layoutBPMN(bpmnXml, config = {}) {
     // Run Phase 2: Position assignment and flow information
     const phase2Result = phase2(elements, flows, lanes, directions, backEdges, pools);
     
+    // Debug: Check if all elements are positioned
+    if (elements.size !== phase2Result.positions.size) {
+      console.error(`\n⚠️  WARNING: Not all elements positioned!`);
+      console.error(`   Total elements: ${elements.size}`);
+      console.error(`   Positioned: ${phase2Result.positions.size}`);
+      console.error(`   Missing: ${elements.size - phase2Result.positions.size}`);
+      const missing = [];
+      for (const [id] of elements) {
+        if (!phase2Result.positions.has(id)) {
+          missing.push(id);
+        }
+      }
+      console.error(`   Missing elements: ${missing.join(', ')}\n`);
+    }
+    
     // ===== PHASE 3: Pixel Coordinates + BPMN DI =====
     
-    const { coordinates, flowWaypoints, laneBounds, poolBounds } = phase3(phase2Result, elements, lanes, directions, pools);
+    const { coordinates, flowWaypoints, laneBounds, poolBounds } = phase3(phase2Result, elements, lanes, directions, pools, flows);
     
     // Generate BPMN XML with DI
     const outputXml = injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, phase2Result.flowInfos, pools, poolBounds);

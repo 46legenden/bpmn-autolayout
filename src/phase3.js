@@ -247,15 +247,20 @@ export function calculateFlowWaypoints(flowInfo, coordinates, lanes, directions,
   const sourceCoord = coordinates.get(flowInfo.sourceId);
   const startPoint = calculateConnectionPoint(sourceCoord, flowInfo.source.exitSide);
   
-  // Waypoints
+  // End point
+  const targetCoord = coordinates.get(flowInfo.targetId);
+  const endPoint = calculateConnectionPoint(targetCoord, flowInfo.target.entrySide);
+  
+  // Message flows: direct line (no intermediate waypoints)
+  if (flowInfo.isMessageFlow) {
+    return [startPoint, endPoint];
+  }
+  
+  // Normal flows: include intermediate waypoints
   for (const waypoint of flowInfo.waypoints) {
     const wpCoord = calculateWaypointCoordinate(waypoint, lanes, directions, laneBounds);
     pixelWaypoints.push(wpCoord);
   }
-  
-  // End point
-  const targetCoord = coordinates.get(flowInfo.targetId);
-  const endPoint = calculateConnectionPoint(targetCoord, flowInfo.target.entrySide);
   
   return [startPoint, ...pixelWaypoints, endPoint];
 }
@@ -534,7 +539,7 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
  * @param {Object} directions - Direction mappings
  * @returns {Map} - Map of laneId → {x, y, width, height, maxRows}
  */
-export function calculateLaneBounds(lanes, positions, directions) {
+export function calculateLaneBounds(lanes, positions, directions, pools = new Map()) {
   const isHorizontal = directions.alongLane === 'right';
   
   // Normalize rows first
@@ -659,19 +664,41 @@ export function calculateLaneBounds(lanes, positions, directions) {
   
   // Process only top-level lanes (those without parents)
   if (isHorizontal) {
+    const POOL_GAP = 50; // Gap between different pools
     let currentY = LANE_TOP_OFFSET;
+    let lastPoolId = null;
+    
     for (const [laneId, lane] of lanes) {
       if (!lane.parentLane) {
+        // Check if this lane belongs to a different pool than the previous one
+        const currentPoolId = lane.poolId;
+        if (lastPoolId !== null && currentPoolId !== lastPoolId) {
+          // Different pool → add gap
+          currentY += POOL_GAP;
+        }
+        
         const result = calculateLaneBoundsRecursive(laneId, currentY, 0);
         currentY += result.height;
+        lastPoolId = currentPoolId;
       }
     }
   } else {
+    const POOL_GAP = 50; // Gap between different pools
     let currentX = LANE_LEFT_OFFSET;
+    let lastPoolId = null;
+    
     for (const [laneId, lane] of lanes) {
       if (!lane.parentLane) {
+        // Check if this lane belongs to a different pool than the previous one
+        const currentPoolId = lane.poolId;
+        if (lastPoolId !== null && currentPoolId !== lastPoolId) {
+          // Different pool → add gap
+          currentX += POOL_GAP;
+        }
+        
         const result = calculateLaneBoundsRecursive(laneId, 0, currentX);
         currentX += result.width;
+        lastPoolId = currentPoolId;
       }
     }
   }
@@ -728,14 +755,31 @@ function calculatePoolBounds(pools, laneBounds, coordinates, lanes) {
   return poolBounds;
 }
 
-export function phase3(phase2Result, elements, lanes, directions, pools = new Map()) {
+import { checkFlowCollisions } from './flow-collision-detector.js';
+
+export function phase3(phase2Result, elements, lanes, directions, pools = new Map(), flows = new Map()) {
   const { positions, flowInfos } = phase2Result;
   
   // Calculate lane bounds first (needed for element positioning)
-  const laneBounds = calculateLaneBounds(lanes, positions, directions);
+  const laneBounds = calculateLaneBounds(lanes, positions, directions, pools);
   
   // Calculate element coordinates (positioned within lanes)
   const coordinates = calculateElementCoordinates(elements, positions, laneBounds, directions, lanes);
+  
+  // Debug: Check if all elements have coordinates
+  if (elements.size !== coordinates.size) {
+    console.error(`\n⚠️  WARNING: Not all elements have coordinates!`);
+    console.error(`   Total elements: ${elements.size}`);
+    console.error(`   Coordinates: ${coordinates.size}`);
+    console.error(`   Missing: ${elements.size - coordinates.size}`);
+    const missing = [];
+    for (const [id] of elements) {
+      if (!coordinates.has(id)) {
+        missing.push(id);
+      }
+    }
+    console.error(`   Missing coordinates: ${missing.join(', ')}\n`);
+  }
   
   // Calculate flow waypoints
   const flowWaypoints = new Map();
@@ -754,6 +798,11 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   
   // Calculate pool bounds (encompassing all lanes in each pool)
   const poolBounds = calculatePoolBounds(pools, laneBounds, coordinates, lanes);
+  
+  // Check for flow collisions (debugging)
+  if (flows.size > 0) {
+    checkFlowCollisions(flows, flowWaypoints, coordinates, flowInfos);
+  }
   
   return {
     coordinates,
@@ -1098,6 +1147,31 @@ export function generateElementDI(elements, coordinates, flowWaypoints, flows) {
  */
 function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flows, flowInfo, flowInfos, flowWaypoints) {
   const sourceEl = elements.get(flow.sourceRef);
+  
+  // Check if this is a message flow
+  if (flow.type === 'messageFlow') {
+    // Message flow → position label at first waypoint (flow start)
+    if (!waypoints || waypoints.length < 2) {
+      return { x: 0, y: 0, width: 50, height: 20 };
+    }
+    
+    const textLength = flow.name ? flow.name.length : 10;
+    const LABEL_WIDTH = Math.max(50, textLength * 7 + 10);
+    const LABEL_HEIGHT = 20;
+    const LABEL_OFFSET = 5;
+    
+    // Use first waypoint (where arrow exits the source event)
+    const wp1 = waypoints[0];
+    const HORIZONTAL_OFFSET = 10; // Small offset to the right
+    
+    // Position label above first waypoint, left-aligned with offset
+    return {
+      x: wp1.x + HORIZONTAL_OFFSET,
+      y: wp1.y - LABEL_HEIGHT - LABEL_OFFSET,
+      width: LABEL_WIDTH,
+      height: LABEL_HEIGHT
+    };
+  }
   
   // Check if source is a gateway (output flow from gateway)
   const isGatewaySource = sourceEl && sourceEl.type && sourceEl.type.includes('Gateway');

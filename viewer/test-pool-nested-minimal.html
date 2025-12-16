@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pool + Nested Lanes Test</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial; }
+    #canvas { border: 1px solid #ccc; height: 600px; }
+  </style>
+</head>
+<body>
+  <h2>Pool + Nested Lanes (Parent + 2 Children) - Should show "Company A" pool label</h2>
+  <div id="canvas"></div>
+  
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-viewer.development.js"></script>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    
+    fetch('../test-data/test-pool-nested-minimal.bpmn')
+      .then(r => r.text())
+      .then(xml => {
+        viewer.importXML(xml);
+      })
+      .catch(err => console.error('Error:', err));
+  </script>
+</body>
+</html>
