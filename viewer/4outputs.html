@@ -15,7 +15,7 @@
   <div id="canvas"></div>
   <script>
     const viewer = new BpmnJS({ container: '#canvas' });
-    fetch('output-4outputs.bpmn')
+    fetch('../test-data/real-world/output-4outputs-layouted.bpmn')
       .then(response => response.text())
       .then(xml => {
         viewer.importXML(xml).then(() => {
