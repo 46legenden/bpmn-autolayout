@@ -29,7 +29,7 @@ describe('Integration: Simple 3-Lane Process', () => {
     
     expect(elements.size).toBe(6); // start, xor, 3 tasks, end
     expect(flows.size).toBe(7);
-    expect(lanes.size).toBe(4); // 3 lanes + 1 laneSet
+    expect(lanes.size).toBe(3); // 3 lanes (laneSets are filtered out)
 
     // Pre-process (no XOR merge to remove in this case)
     const processedGraph = preProcess(graph);

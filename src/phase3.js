@@ -575,7 +575,63 @@ export function calculateLaneBounds(lanes, positions, directions) {
   return laneBounds;
 }
 
-export function phase3(phase2Result, elements, lanes, directions) {
+/**
+ * Calculate pool bounds that encompass all lanes in each pool
+ * @param {Map} pools - Pool map
+ * @param {Map} laneBounds - Lane bounds
+ * @param {Map} coordinates - Element coordinates
+ * @param {Map} lanes - Lane map
+ * @returns {Map} - poolId → {x, y, width, height}
+ */
+function calculatePoolBounds(pools, laneBounds, coordinates, lanes) {
+  const poolBounds = new Map();
+  
+  for (const [poolId, pool] of pools) {
+    if (pool.lanes.length === 0) continue;
+    
+    // Find min/max Y from laneBounds
+    let minY = Infinity, maxY = -Infinity;
+    
+    for (const laneId of pool.lanes) {
+      const bounds = laneBounds.get(laneId);
+      if (!bounds) continue;
+      
+      minY = Math.min(minY, bounds.y || 0);
+      maxY = Math.max(maxY, (bounds.y || 0) + (bounds.height || 0));
+    }
+    
+    // Find min/max X from element coordinates in this pool's lanes
+    let minX = Infinity, maxX = -Infinity;
+    
+    for (const laneId of pool.lanes) {
+      const lane = lanes.get(laneId);
+      if (!lane || !lane.elements) continue;
+      
+      for (const elementId of lane.elements) {
+        const coord = coordinates.get(elementId);
+        if (!coord) continue;
+        
+        minX = Math.min(minX, coord.x);
+        maxX = Math.max(maxX, coord.x + coord.width);
+      }
+    }
+    
+    // Add padding for pool boundaries
+    const POOL_PADDING_LEFT = 80;  // Space for pool/lane labels + margin
+    const POOL_PADDING_RIGHT = 50; // Right margin
+    
+    poolBounds.set(poolId, {
+      x: minX - POOL_PADDING_LEFT,
+      y: minY,
+      width: (maxX - minX) + POOL_PADDING_LEFT + POOL_PADDING_RIGHT,
+      height: maxY - minY
+    });
+  }
+  
+  return poolBounds;
+}
+
+export function phase3(phase2Result, elements, lanes, directions, pools = new Map()) {
   const { positions, flowInfos } = phase2Result;
   
   // Calculate lane bounds first (needed for element positioning)
@@ -599,10 +655,14 @@ export function phase3(phase2Result, elements, lanes, directions) {
     }
   }
   
+  // Calculate pool bounds (encompassing all lanes in each pool)
+  const poolBounds = calculatePoolBounds(pools, laneBounds, coordinates, lanes);
+  
   return {
     coordinates,
     flowWaypoints,
-    laneBounds
+    laneBounds,
+    poolBounds
   };
 }
 
@@ -613,12 +673,13 @@ export function phase3(phase2Result, elements, lanes, directions) {
  * @returns {string} - BPMN DI XML string
  */
 /**
- * Calculate pool bounds that encompass all lanes
+ * Calculate single pool bounds that encompass all lanes (legacy function for single-pool layouts)
  * @param {Map} laneBounds - Lane bounds
+ * @param {Map} coordinates - Element coordinates
  * @param {Object} directions - Direction mappings
  * @returns {Object} - {x, y, width, height}
  */
-export function calculatePoolBounds(laneBounds, coordinates, directions) {
+function calculateSinglePoolBounds(laneBounds, coordinates, directions) {
   const isHorizontal = directions.alongLane === 'right';
   
   if (laneBounds.size === 0) {
@@ -705,9 +766,16 @@ export function generateLaneDI(lanes, laneBounds, poolBounds, directions) {
       const bounds = laneBounds.get(laneId);
       if (!bounds) continue;
       
+      // Get pool bounds for this lane (if poolBounds is a Map)
+      const poolBound = poolBounds instanceof Map 
+        ? poolBounds.get(lane.poolId) 
+        : poolBounds;
+      
+      if (!poolBound) continue;
+      
       shapes.push(
         `      <bpmndi:BPMNShape id="${laneId}_di" bpmnElement="${laneId}" isHorizontal="true">`,
-        `        <dc:Bounds x="${poolBounds.x + 30}" y="${bounds.y}" width="${poolBounds.width - 30}" height="${bounds.height}" />`,
+        `        <dc:Bounds x="${poolBound.x + 30}" y="${bounds.y}" width="${poolBound.width - 30}" height="${bounds.height}" />`,
         `      </bpmndi:BPMNShape>`
       );
     }
@@ -1220,19 +1288,18 @@ function removeDeletedElementsFromXML(bpmnXml, elements, flows) {
   return cleanedXml;
 }
 
-export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, flowInfos) {
+export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, flowInfos, pools = new Map(), poolBounds = new Map()) {
   // Remove deleted elements/flows from XML first
   const cleanedXml = removeDeletedElementsFromXML(bpmnXml, elements, flows);
   
-  // Extract pool ID from BPMN XML (participant element)
-  const poolMatch = cleanedXml.match(/<bpmn:participant\s+id="([^"]+)"/);  
-  const poolId = poolMatch ? poolMatch[1] : null;
-  
-  // Calculate pool bounds (needs coordinates for width calculation)
-  const poolBounds = calculatePoolBounds(laneBounds, coordinates, directions);
-  
-  // Generate DI XML
-  const poolDI = poolId ? generatePoolDI(poolId, poolBounds, directions) : '';
+  // Generate DI XML for all pools
+  let poolDI = '';
+  for (const [poolId, pool] of pools) {
+    const bounds = poolBounds.get(poolId);
+    if (bounds) {
+      poolDI += generatePoolDI(poolId, bounds, directions);
+    }
+  }
   const laneDI = generateLaneDI(lanes, laneBounds, poolBounds, directions);
   const elementDI = generateElementDI(elements, coordinates, flowWaypoints, flows);
   const flowDI = generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos);

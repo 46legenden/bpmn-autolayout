@@ -49,7 +49,7 @@ export function layoutBPMN(bpmnXml, config = {}) {
     // Detect back-edges (loops)
     const backEdges = detectBackEdges(processedGraph);
     
-    const { elements, flows, lanes } = processedGraph;
+    const { elements, flows, lanes, pools } = processedGraph;
     
     // ===== PHASE 2: Position Assignment + Flow Information =====
     
@@ -57,14 +57,14 @@ export function layoutBPMN(bpmnXml, config = {}) {
     const directions = applyConfig(config);
     
     // Run Phase 2: Position assignment and flow information
-    const phase2Result = phase2(elements, flows, lanes, directions, backEdges);
+    const phase2Result = phase2(elements, flows, lanes, directions, backEdges, pools);
     
     // ===== PHASE 3: Pixel Coordinates + BPMN DI =====
     
-    const { coordinates, flowWaypoints, laneBounds } = phase3(phase2Result, elements, lanes, directions);
+    const { coordinates, flowWaypoints, laneBounds, poolBounds } = phase3(phase2Result, elements, lanes, directions, pools);
     
     // Generate BPMN XML with DI
-    const outputXml = injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, phase2Result.flowInfos);
+    const outputXml = injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, phase2Result.flowInfos, pools, poolBounds);
     
     return {
       success: true,

@@ -11,15 +11,32 @@
 
 import { calculateWaypoint } from './waypoint-helper.js';
 
+// Module-level variable to store pools for getLaneIndex
+let _pools = new Map();
+
 /**
- * Get lane index (position in lane list)
+ * Get lane index (position in lane list), grouped by pool
  * @param {string} laneId - Lane ID
  * @param {Map} lanes - Lane map
+ * @param {Map} pools - Pool map
  * @returns {number} - Lane index (0 = first/top)
  */
 function getLaneIndex(laneId, lanes) {
-  const laneIds = Array.from(lanes.keys());
-  return laneIds.indexOf(laneId);
+  // If no pools or only one pool, use simple ordering
+  if (_pools.size <= 1) {
+    const laneIds = Array.from(lanes.keys());
+    return laneIds.indexOf(laneId);
+  }
+  
+  // Multiple pools: group lanes by pool
+  const sortedPools = Array.from(_pools.values()).sort((a, b) => a.id.localeCompare(b.id));
+  const orderedLaneIds = [];
+  
+  for (const pool of sortedPools) {
+    orderedLaneIds.push(...pool.lanes);
+  }
+  
+  return orderedLaneIds.indexOf(laneId);
 }
 
 /**
@@ -1341,7 +1358,10 @@ function updateFlowInfosWithAdjustedPositions(flowInfos, positions, elements, la
  * @param {Array} backEdges - Back edges array
  * @returns {Object} - { positions, flowInfos, elementLanes, matrix }
  */
-export function phase2(elements, flows, lanes, directions, backEdges) {
+export function phase2(elements, flows, lanes, directions, backEdges, pools = new Map()) {
+  // Store pools in module-level variable for getLaneIndex
+  _pools = pools;
+  
   // Step 1: Assign gateway lanes
   const elementLanes = assignGatewayLanes(elements, flows, lanes);
   

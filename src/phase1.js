@@ -18,6 +18,7 @@ export function parseXML(bpmnXml) {
   const elements = new Map();
   const flows = new Map();
   const lanes = new Map();
+  const pools = new Map(); // Pool ID → { id, name, processRef, lanes: [] }
 
   try {
     // Basic XML syntax validation
@@ -233,30 +234,57 @@ export function parseXML(bpmnXml) {
       });
     }
 
-    // Extract lanes
-    const laneRegex = /<bpmn:lane[^>]*id="([^"]+)"[^>]*>/g;
-    while ((match = laneRegex.exec(bpmnXml)) !== null) {
-      const id = match[1];
-      lanes.set(id, {
-        id,
-        name: extractName(bpmnXml, id),
-        elements: extractLaneElements(bpmnXml, id)
+    // Extract participants (pools) first to get processRef
+    const participantRegex = /<bpmn:participant[^>]*id="([^"]+)"[^>]*processRef="([^"]+)"[^>]*>/g;
+    while ((match = participantRegex.exec(bpmnXml)) !== null) {
+      const [, poolId, processRef] = match;
+      pools.set(poolId, {
+        id: poolId,
+        name: extractName(bpmnXml, poolId),
+        processRef,
+        lanes: [] // Will be filled when parsing lanes
       });
     }
 
-    // Extract participants (pools)
-    const participantRegex = /<bpmn:participant[^>]*id="([^"]+)"[^>]*>/g;
-    while ((match = participantRegex.exec(bpmnXml)) !== null) {
+    // Extract lanes and associate with pools (exclude laneSet)
+    const laneRegex = /<bpmn:lane\s[^>]*id="([^"]+)"[^>]*>/g;
+    while ((match = laneRegex.exec(bpmnXml)) !== null) {
       const id = match[1];
-      // Note: Participants are containers, not flow objects
-      // Store them separately if needed for pool-based layout
-      elements.set(id, {
+      
+      // Find which process (and thus which pool) this lane belongs to
+      let poolId = null;
+      for (const [pId, pool] of pools) {
+        // Check if this lane is within the process referenced by this pool
+        const processRegex = new RegExp(`<bpmn:process[^>]*id="${pool.processRef}"[^>]*>([\\s\\S]*?)</bpmn:process>`);
+        const processMatch = processRegex.exec(bpmnXml);
+        if (processMatch && processMatch[1].includes(`id="${id}"`)) {
+          poolId = pId;
+          pool.lanes.push(id);
+          break;
+        }
+      }
+      
+      lanes.set(id, {
         id,
-        type: 'participant',
         name: extractName(bpmnXml, id),
-        incoming: [],
-        outgoing: []
+        elements: extractLaneElements(bpmnXml, id),
+        poolId // Track which pool this lane belongs to
       });
+    }
+
+    // If no pools were found, create a default pool for all lanes
+    if (pools.size === 0 && lanes.size > 0) {
+      const defaultPoolId = 'default_pool';
+      pools.set(defaultPoolId, {
+        id: defaultPoolId,
+        name: 'Process',
+        processRef: null,
+        lanes: Array.from(lanes.keys())
+      });
+      // Update all lanes to belong to default pool
+      for (const lane of lanes.values()) {
+        lane.poolId = defaultPoolId;
+      }
     }
 
     // Check for invalid element types (case-sensitivity)
@@ -272,6 +300,7 @@ export function parseXML(bpmnXml) {
       elements,
       flows,
       lanes,
+      pools,
       success: errors.length === 0,
       errors
     };
@@ -453,7 +482,7 @@ export function preProcess(graph, config = {}) {
     flows.delete(gateway.outgoing[0]);
   }
 
-  return { elements, flows, lanes: graph.lanes };
+  return { elements, flows, lanes: graph.lanes, pools: graph.pools };
 }
 
 /**
