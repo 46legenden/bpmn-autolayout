@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Online Order Processing - BPMN Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/bpmn-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/diagram-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/bpmn-font/css/bpmn-embedded.css">
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #canvas { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="canvas"></div>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-viewer.development.js"></script>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    
+    fetch('../test-data/real-world/output-online-order-layouted.bpmn')
+      .then(response => response.text())
+      .then(bpmnXML => {
+        viewer.importXML(bpmnXML).then(() => {
+          const canvas = viewer.get('canvas');
+          canvas.zoom('fit-viewport');
+          console.log('✅ BPMN diagram loaded successfully');
+        }).catch(err => {
+          console.error('❌ Error rendering BPMN:', err);
+        });
+      })
+      .catch(err => {
+        console.error('❌ Error loading BPMN file:', err);
+      });
+  </script>
+</body>
+</html>

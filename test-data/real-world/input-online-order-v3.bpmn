@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   id="Definitions_OnlineOrder"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:process id="Process_OnlineOrder" name="Online Order Processing" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_1">
+      <!-- Lane 1: Customer -->
+      <bpmn:lane id="lane_customer" name="Customer">
+        <bpmn:flowNodeRef>start_customer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_place_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>int_wait_delivery</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_customer</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <!-- Lane 2: E-Commerce System -->
+      <bpmn:lane id="lane_system" name="E-Commerce System">
+        <bpmn:flowNodeRef>start_order_received</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_validate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_payment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_event</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>int_payment_ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>int_timeout</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_notify_warehouse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_cancel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_cancelled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_confirmed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <!-- Lane 3: Warehouse -->
+      <bpmn:lane id="lane_warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>start_pick_request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_pick</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_pack</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_handover</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_warehouse</bpmn:flowNodeRef>
+      </bpmn:lane>
+      
+      <!-- Lane 4: Shipping -->
+      <bpmn:lane id="lane_shipping" name="Shipping Partner">
+        <bpmn:flowNodeRef>start_shipping</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_pickup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_deliver</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_shipping</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Customer Lane Elements -->
+    <bpmn:startEvent id="start_customer" name="Want to buy" />
+    <bpmn:task id="task_place_order" name="Place Order Online" />
+    <bpmn:intermediateCatchEvent id="int_wait_delivery" name="Receive Package">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="end_customer" name="Order Complete" />
+    
+    <!-- System Lane Elements -->
+    <bpmn:startEvent id="start_order_received" name="Order Received">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="task_validate" name="Validate Order" />
+    <bpmn:serviceTask id="task_payment" name="Process Payment" />
+    
+    <!-- Event-Based Gateway: Wait for Payment Confirmation OR Timeout -->
+    <bpmn:eventBasedGateway id="gateway_event" name="Wait for Payment" />
+    
+    <bpmn:intermediateCatchEvent id="int_payment_ok" name="Payment OK">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    
+    <bpmn:intermediateCatchEvent id="int_timeout" name="Wait 2 Hours">
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    
+    <bpmn:sendTask id="task_notify_warehouse" name="Notify Warehouse" />
+    <bpmn:task id="task_cancel" name="Cancel Order" />
+    
+    <bpmn:endEvent id="end_cancelled" name="Order Cancelled">
+      <bpmn:terminateEventDefinition />
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="end_confirmed" name="Confirmation Sent">
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    
+    <!-- Warehouse Lane Elements -->
+    <bpmn:startEvent id="start_pick_request" name="Pick Request">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:userTask id="task_pick" name="Pick Items" />
+    <bpmn:userTask id="task_pack" name="Pack Package" />
+    <bpmn:sendTask id="task_handover" name="Handover to Shipping" />
+    <bpmn:endEvent id="end_warehouse" name="Ready" />
+    
+    <!-- Shipping Lane Elements -->
+    <bpmn:startEvent id="start_shipping" name="Pickup Request">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="task_pickup" name="Pickup Package" />
+    <bpmn:sendTask id="task_deliver" name="Deliver to Customer" />
+    <bpmn:endEvent id="end_shipping" name="Delivered" />
+    
+    <!-- Sequence Flows -->
+    
+    <!-- Customer Flow -->
+    <bpmn:sequenceFlow id="flow_c1" sourceRef="start_customer" targetRef="task_place_order" />
+    <bpmn:sequenceFlow id="flow_c2" sourceRef="task_place_order" targetRef="start_order_received" />
+    <bpmn:sequenceFlow id="flow_c3" sourceRef="int_wait_delivery" targetRef="end_customer" />
+    
+    <!-- System Flow -->
+    <bpmn:sequenceFlow id="flow_s1" sourceRef="start_order_received" targetRef="task_validate" />
+    <bpmn:sequenceFlow id="flow_s2" sourceRef="task_validate" targetRef="task_payment" />
+    <bpmn:sequenceFlow id="flow_s3" sourceRef="task_payment" targetRef="gateway_event" />
+    <bpmn:sequenceFlow id="flow_s4" sourceRef="gateway_event" targetRef="int_payment_ok" />
+    <bpmn:sequenceFlow id="flow_s5" sourceRef="gateway_event" targetRef="int_timeout" />
+    <bpmn:sequenceFlow id="flow_s6" sourceRef="int_payment_ok" targetRef="task_notify_warehouse" />
+    <bpmn:sequenceFlow id="flow_s7" sourceRef="int_timeout" targetRef="task_cancel" />
+    <bpmn:sequenceFlow id="flow_s8" sourceRef="task_cancel" targetRef="end_cancelled" />
+    <bpmn:sequenceFlow id="flow_s9" sourceRef="end_confirmed" targetRef="start_pick_request" />
+    <bpmn:sequenceFlow id="flow_s10" sourceRef="task_notify_warehouse" targetRef="end_confirmed" />
+    
+    <!-- Warehouse Flow -->
+    <bpmn:sequenceFlow id="flow_w1" sourceRef="start_pick_request" targetRef="task_pick" />
+    <bpmn:sequenceFlow id="flow_w2" sourceRef="task_pick" targetRef="task_pack" />
+    <bpmn:sequenceFlow id="flow_w3" sourceRef="task_pack" targetRef="task_handover" />
+    <bpmn:sequenceFlow id="flow_w4" sourceRef="end_warehouse" targetRef="start_shipping" />
+    <bpmn:sequenceFlow id="flow_w5" sourceRef="task_handover" targetRef="end_warehouse" />
+    
+    <!-- Shipping Flow -->
+    <bpmn:sequenceFlow id="flow_sh1" sourceRef="start_shipping" targetRef="task_pickup" />
+    <bpmn:sequenceFlow id="flow_sh2" sourceRef="task_pickup" targetRef="task_deliver" />
+    <bpmn:sequenceFlow id="flow_sh3" sourceRef="end_shipping" targetRef="int_wait_delivery" />
+    <bpmn:sequenceFlow id="flow_sh4" sourceRef="task_deliver" targetRef="end_shipping" />
+    
+  </bpmn:process>
+  
+</bpmn:definitions>

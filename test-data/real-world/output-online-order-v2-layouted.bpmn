@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   id="Definitions_OnlineOrder"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_OnlineOrder" name="Online Order Processing" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_1">
+      <!-- Lane 1: Customer -->
+      <bpmn:lane id="lane_customer" name="Customer">
+        <bpmn:flowNodeRef>start_customer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_place_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>int_wait_delivery</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_customer</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <!-- Lane 2: E-Commerce System -->
+      <bpmn:lane id="lane_system" name="E-Commerce System">
+        <bpmn:flowNodeRef>start_order_received</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_validate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_payment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>boundary_payment_error</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_event</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>int_payment_ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>int_timeout</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_notify_warehouse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_cancel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_cancelled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_confirmed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <!-- Lane 3: Warehouse -->
+      <bpmn:lane id="lane_warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>start_pick_request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_pick</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_pack</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_handover</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_warehouse</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <!-- Lane 4: Shipping -->
+      <bpmn:lane id="lane_shipping" name="Shipping Partner">
+        <bpmn:flowNodeRef>start_shipping</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_pickup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_deliver</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_shipping</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <!-- Customer Lane Elements -->
+    <bpmn:startEvent id="start_customer" name="Want to buy" />
+    <bpmn:task id="task_place_order" name="Place Order Online" />
+    <bpmn:intermediateCatchEvent id="int_wait_delivery" name="Receive Package">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="end_customer" name="Order Complete" />
+    <!-- System Lane Elements -->
+    <bpmn:startEvent id="start_order_received" name="Order Received">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="task_validate" name="Validate Order" />
+    <bpmn:serviceTask id="task_payment" name="Process Payment" />
+    <bpmn:boundaryEvent id="boundary_payment_error" name="Payment Failed" attachedToRef="task_payment">
+      <bpmn:errorEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:eventBasedGateway id="gateway_event" name="Wait for Payment" />
+    <bpmn:intermediateCatchEvent id="int_payment_ok" name="Payment Confirmed">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="int_timeout" name="Wait 2 Hours">
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sendTask id="task_notify_warehouse" name="Notify Warehouse" />
+    <bpmn:task id="task_cancel" name="Cancel Order" />
+    <bpmn:endEvent id="end_cancelled" name="Order Cancelled">
+      <bpmn:terminateEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="end_confirmed" name="Confirmation Sent">
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <!-- Warehouse Lane Elements -->
+    <bpmn:startEvent id="start_pick_request" name="Pick Request">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:userTask id="task_pick" name="Pick Items from Shelf" />
+    <bpmn:userTask id="task_pack" name="Pack Package" />
+    <bpmn:sendTask id="task_handover" name="Handover to Shipping" />
+    <bpmn:endEvent id="end_warehouse" name="Ready for Pickup" />
+    <!-- Shipping Lane Elements -->
+    <bpmn:startEvent id="start_shipping" name="Pickup Request">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="task_pickup" name="Pickup Package" />
+    <bpmn:sendTask id="task_deliver" name="Deliver to Customer" />
+    <bpmn:endEvent id="end_shipping" name="Delivered" />
+    <!-- Sequence Flows -->
+    <!-- Customer Flow -->
+    <bpmn:sequenceFlow id="flow_c1" sourceRef="start_customer" targetRef="task_place_order" />
+    <bpmn:sequenceFlow id="flow_c2" sourceRef="task_place_order" targetRef="start_order_received" />
+    <bpmn:sequenceFlow id="flow_c3" sourceRef="int_wait_delivery" targetRef="end_customer" />
+    <!-- System Flow -->
+    <bpmn:sequenceFlow id="flow_s1" sourceRef="start_order_received" targetRef="task_validate" />
+    <bpmn:sequenceFlow id="flow_s2" sourceRef="task_validate" targetRef="task_payment" />
+    <bpmn:sequenceFlow id="flow_s3" sourceRef="task_payment" targetRef="gateway_event" />
+    <bpmn:sequenceFlow id="flow_s4" sourceRef="gateway_event" targetRef="int_payment_ok" />
+    <bpmn:sequenceFlow id="flow_s5" sourceRef="gateway_event" targetRef="int_timeout" />
+    <bpmn:sequenceFlow id="flow_s6" sourceRef="int_payment_ok" targetRef="task_notify_warehouse" />
+    <bpmn:sequenceFlow id="flow_s7" sourceRef="int_timeout" targetRef="task_cancel" />
+    <bpmn:sequenceFlow id="flow_s8" sourceRef="boundary_payment_error" targetRef="task_cancel" />
+    <bpmn:sequenceFlow id="flow_s9" sourceRef="task_cancel" targetRef="end_cancelled" />
+    <bpmn:sequenceFlow id="flow_s10" sourceRef="task_notify_warehouse" targetRef="start_pick_request" />
+    <bpmn:sequenceFlow id="flow_s11" sourceRef="task_notify_warehouse" targetRef="end_confirmed" />
+    <!-- Warehouse Flow -->
+    <bpmn:sequenceFlow id="flow_w1" sourceRef="start_pick_request" targetRef="task_pick" />
+    <bpmn:sequenceFlow id="flow_w2" sourceRef="task_pick" targetRef="task_pack" />
+    <bpmn:sequenceFlow id="flow_w3" sourceRef="task_pack" targetRef="task_handover" />
+    <bpmn:sequenceFlow id="flow_w4" sourceRef="task_handover" targetRef="start_shipping" />
+    <bpmn:sequenceFlow id="flow_w5" sourceRef="task_handover" targetRef="end_warehouse" />
+    <!-- Shipping Flow -->
+    <bpmn:sequenceFlow id="flow_sh1" sourceRef="start_shipping" targetRef="task_pickup" />
+    <bpmn:sequenceFlow id="flow_sh2" sourceRef="task_pickup" targetRef="task_deliver" />
+    <bpmn:sequenceFlow id="flow_sh3" sourceRef="task_deliver" targetRef="int_wait_delivery" />
+    <bpmn:sequenceFlow id="flow_sh4" sourceRef="task_deliver" targetRef="end_shipping" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="LaneSet_1_di" bpmnElement="LaneSet_1" isHorizontal="true">
+        <dc:Bounds x="180" y="80" width="2938" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_customer_di" bpmnElement="lane_customer" isHorizontal="true">
+        <dc:Bounds x="180" y="260" width="2938" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_system_di" bpmnElement="lane_system" isHorizontal="true">
+        <dc:Bounds x="180" y="440" width="2938" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_warehouse_di" bpmnElement="lane_warehouse" isHorizontal="true">
+        <dc:Bounds x="180" y="620" width="2938" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_shipping_di" bpmnElement="lane_shipping" isHorizontal="true">
+        <dc:Bounds x="180" y="800" width="2938" height="180" />
+      </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_customer">
+      <dc:Bounds x="232" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="222" y="373" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_order_received">
+      <dc:Bounds x="632" y="512" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="622" y="553" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_pick_request">
+      <dc:Bounds x="1832" y="692" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1822" y="733" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_shipping">
+      <dc:Bounds x="2432" y="872" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2422" y="913" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_customer">
+      <dc:Bounds x="3032" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="3022" y="373" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_cancelled">
+      <dc:Bounds x="1832" y="512" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1822" y="553" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_confirmed">
+      <dc:Bounds x="1832" y="512" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1822" y="553" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_warehouse">
+      <dc:Bounds x="2632" y="692" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2622" y="733" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_shipping">
+      <dc:Bounds x="3032" y="872" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="3022" y="913" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="int_wait_delivery">
+      <dc:Bounds x="2832" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2822" y="307" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="int_payment_ok">
+      <dc:Bounds x="1432" y="512" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1422" y="553" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="int_timeout">
+      <dc:Bounds x="1432" y="512" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1422" y="553" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="boundary_payment_error">
+      <dc:Bounds x="200" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="190" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_place_order">
+      <dc:Bounds x="400" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="390" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_validate">
+      <dc:Bounds x="800" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_cancel">
+      <dc:Bounds x="1600" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1590" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_pickup">
+      <dc:Bounds x="2600" y="850" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2590" y="935" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_pick">
+      <dc:Bounds x="2000" y="670" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1990" y="755" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_pack">
+      <dc:Bounds x="2200" y="670" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2190" y="755" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_payment">
+      <dc:Bounds x="1000" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="990" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_notify_warehouse">
+      <dc:Bounds x="1600" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1590" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_handover">
+      <dc:Bounds x="2400" y="670" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2390" y="755" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_deliver">
+      <dc:Bounds x="2800" y="850" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2790" y="935" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_event">
+      <dc:Bounds x="1225" y="505" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1165" y="485" width="80" height="40" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="flow_c1">
+      <di:waypoint x="268" y="350"/>
+      <di:waypoint x="400" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c2">
+      <di:waypoint x="500" y="350"/>
+      <di:waypoint x="650" y="350"/>
+      <di:waypoint x="650" y="512"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c3">
+      <di:waypoint x="2868" y="350"/>
+      <di:waypoint x="3032" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s1">
+      <di:waypoint x="668" y="530"/>
+      <di:waypoint x="800" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s2">
+      <di:waypoint x="900" y="530"/>
+      <di:waypoint x="1000" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s3">
+      <di:waypoint x="1100" y="530"/>
+      <di:waypoint x="1225" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s4">
+      <di:waypoint x="1275" y="530"/>
+      <di:waypoint x="1432" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s5">
+      <di:waypoint x="1275" y="530"/>
+      <di:waypoint x="1432" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s6">
+      <di:waypoint x="1468" y="530"/>
+      <di:waypoint x="1600" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s7">
+      <di:waypoint x="1468" y="530"/>
+      <di:waypoint x="1600" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s8">
+      <di:waypoint x="300" y="530"/>
+      <di:waypoint x="1600" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s9">
+      <di:waypoint x="1700" y="530"/>
+      <di:waypoint x="1832" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s10">
+      <di:waypoint x="1700" y="530"/>
+      <di:waypoint x="1850" y="530"/>
+      <di:waypoint x="1850" y="692"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s11">
+      <di:waypoint x="1700" y="530"/>
+      <di:waypoint x="1832" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_w1">
+      <di:waypoint x="1868" y="710"/>
+      <di:waypoint x="2000" y="710"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_w2">
+      <di:waypoint x="2100" y="710"/>
+      <di:waypoint x="2200" y="710"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_w3">
+      <di:waypoint x="2300" y="710"/>
+      <di:waypoint x="2400" y="710"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_w4">
+      <di:waypoint x="2450" y="750"/>
+      <di:waypoint x="2450" y="872"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_w5">
+      <di:waypoint x="2500" y="710"/>
+      <di:waypoint x="2632" y="710"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_sh1">
+      <di:waypoint x="2468" y="890"/>
+      <di:waypoint x="2600" y="890"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_sh2">
+      <di:waypoint x="2700" y="890"/>
+      <di:waypoint x="2800" y="890"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_sh3">
+      <di:waypoint x="2850" y="850"/>
+      <di:waypoint x="2850" y="368"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_sh4">
+      <di:waypoint x="2900" y="890"/>
+      <di:waypoint x="3032" y="890"/>
+    </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

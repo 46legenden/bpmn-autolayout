@@ -789,33 +789,45 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   const shouldOptimize = !hasMultipleOutputsToSameLane && (hasSingleCrossLaneOutput || isSymmetricDistribution) && canUseOptimization;
   const layerOffset = (crossLaneOutputs.length > 0 && shouldOptimize) ? 0 : 1;
 
-  // Sort same-lane outputs by their next flow direction (UP first, DOWN last)
-  // This ensures outputs going UP are in upper rows, outputs going DOWN are in lower rows
+  // Helper function to find eventual lane change direction (recursive)
+  // Follows the flow chain until a lane change is found or end is reached
+  const findEventualDirection = (startId, currentLane, visited = new Set()) => {
+    if (visited.has(startId)) return 'none'; // Cycle detected
+    visited.add(startId);
+    
+    // Find all outgoing flows from this element
+    const outFlows = Array.from(flows.values()).filter(f => f.sourceRef === startId);
+    
+    if (outFlows.length === 0) return 'none'; // End reached, no lane change
+    
+    // Check each outgoing flow
+    for (const flow of outFlows) {
+      const targetLane = elementLanes.get(flow.targetRef);
+      const targetLaneIndex = getLaneIndex(targetLane, lanes);
+      
+      // Found a lane change!
+      if (targetLane !== currentLane) {
+        return targetLaneIndex < getLaneIndex(currentLane, lanes) ? 'up' : 'down';
+      }
+      
+      // Same lane, continue searching recursively
+      const result = findEventualDirection(flow.targetRef, currentLane, visited);
+      if (result !== 'none') return result; // Found a lane change downstream
+    }
+    
+    return 'none'; // No lane change found in any path
+  };
+  
+  // Sort same-lane outputs by their eventual flow direction (UP first, DOWN last)
+  // This ensures outputs that eventually go UP are in upper rows, outputs that eventually go DOWN are in lower rows
   sameLaneOutputs.sort((a, b) => {
-    // Find next flow from each target
-    const aNextFlow = Array.from(flows.values()).find(f => f.sourceRef === a.targetId);
-    const bNextFlow = Array.from(flows.values()).find(f => f.sourceRef === b.targetId);
+    // Find eventual direction for each output
+    const aDirection = findEventualDirection(a.targetId, gatewayLane);
+    const bDirection = findEventualDirection(b.targetId, gatewayLane);
     
-    if (!aNextFlow && !bNextFlow) return 0;
-    if (!aNextFlow) return 1;  // a has no next flow, put it last
-    if (!bNextFlow) return -1; // b has no next flow, put it last
-    
-    // Get next target lanes
-    const aNextTargetLane = elementLanes.get(aNextFlow.targetRef);
-    const bNextTargetLane = elementLanes.get(bNextFlow.targetRef);
-    
-    const aNextLaneIndex = getLaneIndex(aNextTargetLane, lanes);
-    const bNextLaneIndex = getLaneIndex(bNextTargetLane, lanes);
-    
-    // Determine direction (relative to gateway lane)
-    const aDirection = aNextLaneIndex < gatewayLaneIndex ? 'up' : 'down';
-    const bDirection = bNextLaneIndex < gatewayLaneIndex ? 'up' : 'down';
-    
-    // UP first (row 0), DOWN last (row 1)
-    if (aDirection === 'up' && bDirection === 'down') return -1;
-    if (aDirection === 'down' && bDirection === 'up') return 1;
-    
-    return 0;
+    // UP first (row 0), DOWN last (row 1), NONE in between
+    const directionPriority = { 'up': 0, 'none': 1, 'down': 2 };
+    return directionPriority[aDirection] - directionPriority[bDirection];
   });
   
   // Assign symmetric rows only for same-lane outputs
@@ -1366,7 +1378,9 @@ export function phase2(elements, flows, lanes, directions, backEdges) {
     const isGateway = sourceElement && (
       sourceElement.type === 'exclusiveGateway' ||
       sourceElement.type === 'parallelGateway' ||
-      sourceElement.type === 'inclusiveGateway'
+      sourceElement.type === 'inclusiveGateway' ||
+      sourceElement.type === 'eventBasedGateway' ||
+      sourceElement.type === 'complexGateway'
     );
     
     // Get all output flows from source

@@ -800,44 +800,92 @@ function calculateElementLabelPosition(elementId, coordinates, flowWaypoints, fl
     };
   }
   
-  // For non-gateway elements: check if incoming flow from below
-  const incomingFlows = [];
+  // For non-gateway elements: check all sides for occupied flows
+  const elementCenter = {
+    x: pos.x + pos.width / 2,
+    y: pos.y + pos.height / 2
+  };
+  
+  const occupiedSides = {
+    top: false,
+    bottom: false,
+    left: false,
+    right: false
+  };
+  
+  // Check all flows (both incoming and outgoing)
   for (const [flowId, flow] of flows) {
-    if (flow.targetRef === elementId) {
-      incomingFlows.push(flowId);
+    const isIncoming = flow.targetRef === elementId;
+    const isOutgoing = flow.sourceRef === elementId;
+    
+    if (!isIncoming && !isOutgoing) continue;
+    
+    const waypoints = flowWaypoints.get(flowId);
+    if (!waypoints || waypoints.length < 2) continue;
+    
+    // For incoming: check approach direction (second-to-last waypoint)
+    // For outgoing: check exit direction (second waypoint)
+    const checkPoint = isIncoming 
+      ? waypoints[waypoints.length - 2] 
+      : waypoints[1];
+    
+    // Determine which side the flow occupies
+    const dx = checkPoint.x - elementCenter.x;
+    const dy = checkPoint.y - elementCenter.y;
+    
+    // Use absolute values to determine primary direction
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // Vertical direction dominates
+      if (dy < 0) {
+        occupiedSides.top = true;
+      } else {
+        occupiedSides.bottom = true;
+      }
+    } else {
+      // Horizontal direction dominates
+      if (dx < 0) {
+        occupiedSides.left = true;
+      } else {
+        occupiedSides.right = true;
+      }
     }
   }
   
-  const hasIncomingFromBelow = incomingFlows.some(flowId => {
-    const waypoints = flowWaypoints.get(flowId);
-    if (!waypoints || waypoints.length < 2) return false;
-    
-    // Get the second-to-last waypoint (approach direction)
-    const approachPoint = waypoints[waypoints.length - 2];
-    const targetCenter = {
-      x: pos.x + pos.width / 2,
-      y: pos.y + pos.height / 2
-    };
-    
-    // Check if approaching from BELOW (approachPoint.y > targetCenter.y)
-    return approachPoint.y > targetCenter.y;
-  });
+  // Choose best available position (priority: bottom > top > right > left)
+  const labelWidth = pos.width + 20;
+  const labelHeight = 20;
   
-  if (hasIncomingFromBelow) {
-    // Arrow from below → Label ABOVE to avoid collision
-    return {
-      x: pos.x - 10,
-      y: pos.y - 25,
-      width: pos.width + 20,
-      height: 20
-    };
-  } else {
+  if (!occupiedSides.bottom) {
     // Label BELOW (default)
     return {
       x: pos.x - 10,
       y: pos.y + pos.height + 5,
-      width: pos.width + 20,
-      height: 20
+      width: labelWidth,
+      height: labelHeight
+    };
+  } else if (!occupiedSides.top) {
+    // Label ABOVE
+    return {
+      x: pos.x - 10,
+      y: pos.y - 25,
+      width: labelWidth,
+      height: labelHeight
+    };
+  } else if (!occupiedSides.right) {
+    // Label RIGHT
+    return {
+      x: pos.x + pos.width + 5,
+      y: pos.y + (pos.height - labelHeight) / 2,
+      width: labelWidth,
+      height: labelHeight
+    };
+  } else {
+    // Label LEFT (fallback, should rarely happen)
+    return {
+      x: pos.x - labelWidth - 5,
+      y: pos.y + (pos.height - labelHeight) / 2,
+      width: labelWidth,
+      height: labelHeight
     };
   }
 }
