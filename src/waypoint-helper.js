@@ -1,5 +1,5 @@
 /**
- * Calculate waypoint position from source/target positions and exit/entry sides
+ * Calculate waypoint position(s) from source/target positions and exit/entry sides
  * 
  * Logic:
  * - exitSide determines which coordinate stays the same from source
@@ -13,12 +13,16 @@
  * - right/left (alongLane): X changes, Y stays
  * - down/up (crossLane): X stays, Y changes
  * 
+ * For cross-lane flows with different layers, we need TWO waypoints:
+ * - First waypoint: source layer, target lane/row (vertical movement)
+ * - Second waypoint: target layer, target lane/row (horizontal movement)
+ * 
  * @param {Object} sourcePos - Source position { lane, layer, row }
  * @param {Object} targetPos - Target position { lane, layer, row }
  * @param {string} exitSide - Exit side from source
  * @param {string} entrySide - Entry side to target
  * @param {Object} directions - Direction mappings
- * @returns {Object} - Waypoint position { lane, layer, row }
+ * @returns {Object|Array|null} - Waypoint position { lane, layer, row }, array of waypoints, or null
  */
 export function calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, directions) {
   // Determine which coordinates to take from source vs target
@@ -40,7 +44,7 @@ export function calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, dir
     }
   }
 
-  // Waypoint is needed - calculate position
+  // Waypoint calculation
   const waypoint = {
     lane: null,
     layer: null,

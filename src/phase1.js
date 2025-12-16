@@ -247,6 +247,7 @@ export function parseXML(bpmnXml) {
     }
 
     // Extract lanes and associate with pools (exclude laneSet)
+    // First pass: collect all lanes
     const laneRegex = /<bpmn:lane\s[^>]*id="([^"]+)"[^>]*>/g;
     while ((match = laneRegex.exec(bpmnXml)) !== null) {
       const id = match[1];
@@ -259,7 +260,6 @@ export function parseXML(bpmnXml) {
         const processMatch = processRegex.exec(bpmnXml);
         if (processMatch && processMatch[1].includes(`id="${id}"`)) {
           poolId = pId;
-          pool.lanes.push(id);
           break;
         }
       }
@@ -268,8 +268,76 @@ export function parseXML(bpmnXml) {
         id,
         name: extractName(bpmnXml, id),
         elements: extractLaneElements(bpmnXml, id),
-        poolId // Track which pool this lane belongs to
+        poolId, // Track which pool this lane belongs to
+        parentLane: null, // Will be set if this is a child lane
+        childLanes: [] // Will be populated if this has child lanes
       });
+    }
+    
+    // Second pass: build lane hierarchy (detect parent-child relationships)
+    for (const [laneId, lane] of lanes) {
+      // Find the lane opening tag position
+      const laneStartRegex = new RegExp(`<bpmn:lane[^>]*id="${laneId}"[^>]*>`);
+      const laneStartMatch = laneStartRegex.exec(bpmnXml);
+      if (!laneStartMatch) continue;
+      
+      const startPos = laneStartMatch.index + laneStartMatch[0].length;
+      
+      // Find the matching closing tag using balanced tag counting
+      let depth = 1;
+      let pos = startPos;
+      let endPos = -1;
+      
+      while (pos < bpmnXml.length && depth > 0) {
+        const nextOpen = bpmnXml.indexOf('<bpmn:lane', pos);
+        const nextClose = bpmnXml.indexOf('</bpmn:lane>', pos);
+        
+        if (nextClose === -1) break;
+        
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth++;
+          pos = nextOpen + 10;
+        } else {
+          depth--;
+          if (depth === 0) {
+            endPos = nextClose;
+            break;
+          }
+          pos = nextClose + 12;
+        }
+      }
+      
+      if (endPos === -1) continue;
+      
+      const laneContent = bpmnXml.substring(startPos, endPos);
+      
+      // Check if this lane has a childLaneSet
+      if (laneContent.includes('<bpmn:childLaneSet')) {
+        // Extract the childLaneSet section
+        const childLaneSetMatch = laneContent.match(/<bpmn:childLaneSet[^>]*>([\s\S]*?)<\/bpmn:childLaneSet>/);
+        if (childLaneSetMatch) {
+          // Extract all child lane IDs from the childLaneSet
+          const childLaneRegex = /<bpmn:lane\s[^>]*id="([^"]+)"[^>]*>/g;
+          let childMatch;
+          while ((childMatch = childLaneRegex.exec(childLaneSetMatch[1])) !== null) {
+            const childId = childMatch[1];
+            if (lanes.has(childId) && childId !== laneId) {
+              lane.childLanes.push(childId);
+              lanes.get(childId).parentLane = laneId;
+            }
+          }
+        }
+      }
+    }
+    
+    // Third pass: update pool.lanes to only include top-level lanes
+    for (const [poolId, pool] of pools) {
+      pool.lanes = [];
+      for (const [laneId, lane] of lanes) {
+        if (lane.poolId === poolId && !lane.parentLane) {
+          pool.lanes.push(laneId);
+        }
+      }
     }
 
     // If no pools were found, create a default pool for all lanes

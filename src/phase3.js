@@ -68,16 +68,15 @@ export function normalizeRows(positions, lanes) {
 
 /**
  * Calculate pixel coordinates for elements
- * @param {Map} positions - Map of elementId → {lane, layer, row}
- * @param {Map} lanes - Lane map
- * @param {Map} laneBounds - Lane bounds from calculateLaneBounds
+ * @param {Map} elements - Element map from Phase 1
+ * @param {Map} positions - Logical positions from Phase 2
+ * @param {Map} laneBounds - Lane bounds
  * @param {Object} directions - Direction mappings from Phase 2
+ * @param {Map} lanes - Lane map (for checking nesting)
  * @returns {Map} - Map of elementId → {x, y, width, height}
  */
-export function calculateElementCoordinates(elements, positions, laneBounds, directions) {
+export function calculateElementCoordinates(elements, positions, laneBounds, directions, lanes) {
   const coordinates = new Map();
-  // Extract lanes from laneBounds keys
-  const lanes = new Map(Array.from(laneBounds.keys()).map(laneId => [laneId, {}]));
   const normalized = normalizeRows(positions, lanes);
   const isHorizontal = directions.alongLane === 'right';
   
@@ -106,8 +105,14 @@ export function calculateElementCoordinates(elements, positions, laneBounds, dir
     if (isHorizontal) {
       // Horizontal orientation: lanes stack vertically, process flows horizontally
       // X: Based on layer (column), centered in column
-      const centerX = POOL_X_OFFSET + pos.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
-      x = centerX - width / 2;
+      // Calculate base X offset based on lane hierarchy
+      // Use lane's X position from laneBounds
+      const laneX = laneBound.x || POOL_X_OFFSET;
+      
+      // Columns fill the entire lane width (no extra margins)
+      // Column center = lane start + (layer * COLUMN_WIDTH) + COLUMN_WIDTH/2
+      const columnCenterX = laneX + pos.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+      x = columnCenterX - width / 2;
       
       // Y: Based on row within lane, with even padding
       const referenceHeight = ELEMENT_HEIGHT;  // Use standard element height for spacing
@@ -154,10 +159,16 @@ export function calculateWaypointCoordinate(waypoint, lanes, directions, laneBou
   if (isHorizontal) {
     // Horizontal orientation
     // X based on layer (column center)
-    x = POOL_X_OFFSET + waypoint.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+    // Use lane's X position from laneBounds (same as elements)
+    const laneBound = laneBounds.get(waypoint.lane);
+    // Use EXACT same logic as elements (line 110)
+    const laneX = laneBound?.x || POOL_X_OFFSET;
+    
+    // Column center = lane start + (layer * COLUMN_WIDTH) + COLUMN_WIDTH/2
+    const columnCenterX = laneX + waypoint.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+    x = columnCenterX;
     
     // Y based on lane + row
-    const laneBound = laneBounds.get(waypoint.lane);
     if (laneBound) {
       // Use same logic as element positioning
       const referenceHeight = ELEMENT_HEIGHT;
@@ -529,46 +540,139 @@ export function calculateLaneBounds(lanes, positions, directions) {
   // Normalize rows first
   const normalized = normalizeRows(positions, lanes);
   
-  // Find max rows per lane
+  // Find max rows per lane (only for leaf lanes that have elements)
   const laneMaxRows = new Map();
+  // Find max layer across all elements (for width calculation)
+  let maxLayer = 0;
+  
   for (const [elementId, pos] of normalized) {
     const currentMax = laneMaxRows.get(pos.lane) || 0;
     laneMaxRows.set(pos.lane, Math.max(currentMax, pos.normalizedRow + 1));
+    maxLayer = Math.max(maxLayer, pos.layer);
   }
   
   const laneBounds = new Map();
   
-  if (isHorizontal) {
-    // Horizontal orientation: lanes stack vertically
-    let currentY = LANE_TOP_OFFSET;
+  // Helper function to calculate bounds for a lane and its children recursively
+  function calculateLaneBoundsRecursive(laneId, startY, startX) {
+    const lane = lanes.get(laneId);
+    if (!lane) return { height: 0, width: 0 };
     
-    for (const [laneId, lane] of lanes) {
+    // If this lane has children, calculate their bounds first
+    if (lane.childLanes && lane.childLanes.length > 0) {
+      if (isHorizontal) {
+        // Children stack vertically
+        let childY = startY;
+        let totalHeight = 0;
+        
+        for (const childId of lane.childLanes) {
+          const childResult = calculateLaneBoundsRecursive(childId, childY, startX);
+          childY += childResult.height;
+          totalHeight += childResult.height;
+        }
+        
+        // Parent lane bounds encompass all children
+        // Calculate X position for parent lane
+        const POOL_LABEL_WIDTH = 30;
+        const PARENT_LANE_LABEL_WIDTH = 30;
+        const CHILD_LANE_INDENT = 30;
+        const ELEMENT_LEFT_MARGIN = 50;
+        const ELEMENT_RIGHT_MARGIN = 50;
+        const parentX = POOL_X_OFFSET + POOL_LABEL_WIDTH; // Parent starts right after pool label
+        
+        // Parent width includes child indent + column space
+        const parentWidth = CHILD_LANE_INDENT + (maxLayer + 1) * COLUMN_WIDTH;
+        
+        laneBounds.set(laneId, {
+          x: parentX,
+          y: startY,
+          width: parentWidth,
+          height: totalHeight,
+          maxRows: 0, // Parent lanes don't have their own rows
+          isParent: true
+        });
+        
+        return { height: totalHeight, width: 0 };
+      } else {
+        // Children stack horizontally
+        let childX = startX;
+        let totalWidth = 0;
+        
+        for (const childId of lane.childLanes) {
+          const childResult = calculateLaneBoundsRecursive(childId, startY, childX);
+          childX += childResult.width;
+          totalWidth += childResult.width;
+        }
+        
+        // Parent lane bounds encompass all children
+        laneBounds.set(laneId, {
+          x: startX,
+          width: totalWidth,
+          maxRows: 0,
+          isParent: true
+        });
+        
+        return { height: 0, width: totalWidth };
+      }
+    } else {
+      // Leaf lane - has its own elements
       const maxRows = laneMaxRows.get(laneId) || 1;
-      const laneHeight = LANE_BASE_HEIGHT + (maxRows - 1) * LANE_ROW_HEIGHT;
       
-      laneBounds.set(laneId, {
-        y: currentY,
-        height: laneHeight,
-        maxRows: maxRows
-      });
-      
-      currentY += laneHeight;
+      if (isHorizontal) {
+        const laneHeight = LANE_BASE_HEIGHT + (maxRows - 1) * LANE_ROW_HEIGHT;
+        
+        // Calculate X position based on hierarchy
+        const POOL_LABEL_WIDTH = 30;
+        const PARENT_LANE_LABEL_WIDTH = 30;
+        const CHILD_LANE_INDENT = 30;
+        const ELEMENT_LEFT_MARGIN = 50;
+        const ELEMENT_RIGHT_MARGIN = 50;
+        const isChildLane = lane.parentLane;
+        // Child lanes start at parent X + parent label width
+        const laneX = POOL_X_OFFSET + POOL_LABEL_WIDTH + 
+                      (isChildLane ? PARENT_LANE_LABEL_WIDTH : 0);
+        
+        // Width = number of columns * column width (no extra margins)
+        const laneWidth = (maxLayer + 1) * COLUMN_WIDTH;
+        
+        laneBounds.set(laneId, {
+          x: laneX,
+          y: startY,
+          width: laneWidth,
+          height: laneHeight,
+          maxRows: maxRows,
+          isParent: false
+        });
+        return { height: laneHeight, width: 0 };
+      } else {
+        const laneWidth = LANE_BASE_WIDTH + (maxRows - 1) * LANE_ROW_WIDTH;
+        laneBounds.set(laneId, {
+          x: startX,
+          width: laneWidth,
+          maxRows: maxRows,
+          isParent: false
+        });
+        return { height: 0, width: laneWidth };
+      }
+    }
+  }
+  
+  // Process only top-level lanes (those without parents)
+  if (isHorizontal) {
+    let currentY = LANE_TOP_OFFSET;
+    for (const [laneId, lane] of lanes) {
+      if (!lane.parentLane) {
+        const result = calculateLaneBoundsRecursive(laneId, currentY, 0);
+        currentY += result.height;
+      }
     }
   } else {
-    // Vertical orientation: lanes stack horizontally
     let currentX = LANE_LEFT_OFFSET;
-    
     for (const [laneId, lane] of lanes) {
-      const maxRows = laneMaxRows.get(laneId) || 1;
-      const laneWidth = LANE_BASE_WIDTH + (maxRows - 1) * LANE_ROW_WIDTH;
-      
-      laneBounds.set(laneId, {
-        x: currentX,
-        width: laneWidth,
-        maxRows: maxRows
-      });
-      
-      currentX += laneWidth;
+      if (!lane.parentLane) {
+        const result = calculateLaneBoundsRecursive(laneId, 0, currentX);
+        currentX += result.width;
+      }
     }
   }
   
@@ -600,30 +704,23 @@ function calculatePoolBounds(pools, laneBounds, coordinates, lanes) {
       maxY = Math.max(maxY, (bounds.y || 0) + (bounds.height || 0));
     }
     
-    // Find min/max X from element coordinates in this pool's lanes
-    let minX = Infinity, maxX = -Infinity;
-    
+    // Find max lane width (all lanes should have same width)
+    let maxLaneWidth = 0;
     for (const laneId of pool.lanes) {
-      const lane = lanes.get(laneId);
-      if (!lane || !lane.elements) continue;
-      
-      for (const elementId of lane.elements) {
-        const coord = coordinates.get(elementId);
-        if (!coord) continue;
-        
-        minX = Math.min(minX, coord.x);
-        maxX = Math.max(maxX, coord.x + coord.width);
+      const bounds = laneBounds.get(laneId);
+      if (bounds && bounds.width) {
+        maxLaneWidth = Math.max(maxLaneWidth, bounds.width);
       }
     }
     
-    // Add padding for pool boundaries
-    const POOL_PADDING_LEFT = 80;  // Space for pool/lane labels + margin
-    const POOL_PADDING_RIGHT = 50; // Right margin
+    // Pool width = pool label + max parent lane width
+    const POOL_LABEL_WIDTH = 30;
+    const PARENT_LANE_LABEL_WIDTH = 30;
     
     poolBounds.set(poolId, {
-      x: minX - POOL_PADDING_LEFT,
+      x: POOL_X_OFFSET,
       y: minY,
-      width: (maxX - minX) + POOL_PADDING_LEFT + POOL_PADDING_RIGHT,
+      width: POOL_LABEL_WIDTH + maxLaneWidth,
       height: maxY - minY
     });
   }
@@ -638,7 +735,7 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   const laneBounds = calculateLaneBounds(lanes, positions, directions);
   
   // Calculate element coordinates (positioned within lanes)
-  const coordinates = calculateElementCoordinates(elements, positions, laneBounds, directions);
+  const coordinates = calculateElementCoordinates(elements, positions, laneBounds, directions, lanes);
   
   // Calculate flow waypoints
   const flowWaypoints = new Map();
@@ -745,6 +842,7 @@ export function generatePoolDI(poolId, poolBounds, directions) {
   
   return `      <bpmndi:BPMNShape id="${poolId}_di" bpmnElement="${poolId}" isHorizontal="${isHorizontal}">
         <dc:Bounds x="${poolBounds.x}" y="${poolBounds.y}" width="${poolBounds.width}" height="${poolBounds.height}" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>`;
 }
 
@@ -760,6 +858,9 @@ export function generateLaneDI(lanes, laneBounds, poolBounds, directions) {
   const shapes = [];
   const isHorizontal = directions.alongLane === 'right';
   
+  const PARENT_LANE_LABEL_WIDTH = 30;  // Width for parent lane labels
+  const CHILD_LANE_INDENT = 30;         // Additional indent for child lanes
+  
   if (isHorizontal) {
     // Horizontal orientation - use actual lane positions
     for (const [laneId, lane] of lanes) {
@@ -773,9 +874,13 @@ export function generateLaneDI(lanes, laneBounds, poolBounds, directions) {
       
       if (!poolBound) continue;
       
+      // Use X from laneBounds (already calculated with correct offsets)
+      const laneX = bounds.x || (poolBound.x + PARENT_LANE_LABEL_WIDTH);
+      const laneWidth = bounds.width || (poolBound.width - PARENT_LANE_LABEL_WIDTH);
+      
       shapes.push(
         `      <bpmndi:BPMNShape id="${laneId}_di" bpmnElement="${laneId}" isHorizontal="true">`,
-        `        <dc:Bounds x="${poolBound.x + 30}" y="${bounds.y}" width="${poolBound.width - 30}" height="${bounds.height}" />`,
+        `        <dc:Bounds x="${laneX}" y="${bounds.y}" width="${laneWidth}" height="${bounds.height}" />`,
         `      </bpmndi:BPMNShape>`
       );
     }
@@ -1289,8 +1394,43 @@ function removeDeletedElementsFromXML(bpmnXml, elements, flows) {
 }
 
 export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowWaypoints, laneBounds, directions, flowInfos, pools = new Map(), poolBounds = new Map()) {
+  // Fix collaboration/process order if needed (collaboration must come before process for pool labels to work)
+  let reorderedXml = bpmnXml;
+  const collaborationMatch = bpmnXml.match(/<bpmn:collaboration[\s\S]*?<\/bpmn:collaboration>/);  
+  const processMatch = bpmnXml.match(/<bpmn:process[\s\S]*?<\/bpmn:process>/);
+  
+  if (collaborationMatch && processMatch) {
+    const collaborationPos = bpmnXml.indexOf(collaborationMatch[0]);
+    const processPos = bpmnXml.indexOf(processMatch[0]);
+    
+    // If process comes before collaboration, swap them
+    if (processPos < collaborationPos) {
+      // Extract both sections
+      const collaborationOriginal = collaborationMatch[0];
+      const process = processMatch[0];
+      
+      // Add id="Collaboration_1" if missing
+      let collaboration = collaborationOriginal;
+      if (!collaboration.match(/<bpmn:collaboration[^>]*\sid=/)) {
+        collaboration = collaboration.replace('<bpmn:collaboration', '<bpmn:collaboration id="Collaboration_1"');
+      }
+      
+      // Remove both from XML (use original for matching)
+      reorderedXml = bpmnXml.replace(collaborationOriginal, '').replace(process, '');
+      
+      // Find the definitions tag and insert collaboration first, then process
+      const definitionsEnd = reorderedXml.indexOf('<bpmn:process') !== -1 ? 
+        reorderedXml.indexOf('<bpmn:process') : 
+        reorderedXml.indexOf('</bpmn:definitions>');
+      
+      reorderedXml = reorderedXml.substring(0, definitionsEnd) + 
+        '  ' + collaboration + '\n  ' + process + '\n' + 
+        reorderedXml.substring(definitionsEnd);
+    }
+  }
+  
   // Remove deleted elements/flows from XML first
-  const cleanedXml = removeDeletedElementsFromXML(bpmnXml, elements, flows);
+  const cleanedXml = removeDeletedElementsFromXML(reorderedXml, elements, flows);
   
   // Generate DI XML for all pools
   let poolDI = '';
@@ -1310,8 +1450,11 @@ export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowW
     const diStart = cleanedXml.indexOf('<bpmndi:BPMNDiagram');
     const diEnd = cleanedXml.indexOf('</bpmndi:BPMNDiagram>') + '</bpmndi:BPMNDiagram>'.length;
     
+    // If pools exist, BPMNPlane should reference Collaboration, not Process
+    const planeElement = pools.size > 0 ? 'Collaboration_1' : 'Process_1';
+    
     const newDI = `  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane bpmnElement="Process_1">
+    <bpmndi:BPMNPlane bpmnElement="${planeElement}">
 ${poolDI ? poolDI + '\n' : ''}${laneDI}
 ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>`;
@@ -1321,8 +1464,11 @@ ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
     // Add new DI before closing </definitions>
     const definitionsEnd = cleanedXml.lastIndexOf('</bpmn:definitions>');
     
+    // If pools exist, BPMNPlane should reference Collaboration, not Process
+    const planeElement = pools.size > 0 ? 'Collaboration_1' : 'Process_1';
+    
     const newDI = `  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane bpmnElement="Process_1">
+    <bpmndi:BPMNPlane bpmnElement="${planeElement}">
 ${poolDI ? poolDI + '\n' : ''}${laneDI}
 ${elementDI}${flowDI}    </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

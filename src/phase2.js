@@ -492,8 +492,14 @@ export function createCrossLaneFreeFlowInfo(flowId, sourceId, targetId, position
     entrySide = directions.oppAlongLane;    // left
   }
   
-  // Calculate waypoint for direction change
+  // Calculate waypoint(s) for direction change
   const waypoint = calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, directions);
+
+  // Handle both single waypoint and array of waypoints
+  let waypoints = [];
+  if (waypoint) {
+    waypoints = Array.isArray(waypoint) ? waypoint : [waypoint];
+  }
 
   return {
     flowId,
@@ -506,7 +512,7 @@ export function createCrossLaneFreeFlowInfo(flowId, sourceId, targetId, position
       row: sourcePos.row,
       exitSide: exitSide
     },
-    waypoints: waypoint ? [waypoint] : [],
+    waypoints: waypoints,
     target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
@@ -594,6 +600,12 @@ export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, posit
 
   const waypoint = calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, directions);
 
+  // Handle both single waypoint and array of waypoints
+  let waypoints = [];
+  if (waypoint) {
+    waypoints = Array.isArray(waypoint) ? waypoint : [waypoint];
+  }
+
   return {
     flowId,
     sourceId,
@@ -605,7 +617,7 @@ export function createCrossLaneBlockedFlowInfo(flowId, sourceId, targetId, posit
       row: sourcePos.row,
       exitSide
     },
-    waypoints: [waypoint],
+    waypoints: waypoints,
     target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
@@ -957,6 +969,12 @@ export function createGatewayOutputFlowInfo(flowId, gatewayId, targetId, positio
 
   const waypoint = calculateWaypoint(gatewayPos, targetPos, exitSide, entrySide, directions);
 
+  // Handle both single waypoint and array of waypoints
+  let waypoints = [];
+  if (waypoint) {
+    waypoints = Array.isArray(waypoint) ? waypoint : [waypoint];
+  }
+
   return {
     flowId,
     sourceId: gatewayId,
@@ -968,7 +986,7 @@ export function createGatewayOutputFlowInfo(flowId, gatewayId, targetId, positio
       row: gatewayPos.row,
       exitSide
     },
-    waypoints: [waypoint],
+    waypoints: waypoints,
     target: {
       lane: targetPos.lane,
       layer: targetPos.layer,
@@ -1343,9 +1361,14 @@ function updateFlowInfosWithAdjustedPositions(flowInfos, positions, elements, la
       }
     }
     
-    // Recalculate waypoint
+    // Recalculate waypoint(s)
     const waypoint = calculateWaypoint(sourcePos, targetPos, flowInfo.source.exitSide, flowInfo.target.entrySide, directions);
-    flowInfo.waypoints = waypoint ? [waypoint] : [];
+    // Handle both single waypoint and array of waypoints
+    if (waypoint) {
+      flowInfo.waypoints = Array.isArray(waypoint) ? waypoint : [waypoint];
+    } else {
+      flowInfo.waypoints = [];
+    }
   }
 }
 
