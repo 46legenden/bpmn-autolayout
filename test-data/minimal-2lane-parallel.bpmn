@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_2lane_test"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="pool1" name="Test Pool" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="lane_ops" name="Operations">
+        <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_ops_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_ops_3</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_ops_return</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_support" name="Support">
+        <bpmn:flowNodeRef>task_support</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Start -->
+    <bpmn:startEvent id="start1" name="Start">
+      <bpmn:outgoing>flow1</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Parallel Gateway Split -->
+    <bpmn:parallelGateway id="gateway_split" name="Split">
+      <bpmn:incoming>flow1</bpmn:incoming>
+      <bpmn:outgoing>flow4</bpmn:outgoing>
+      <bpmn:outgoing>flow3</bpmn:outgoing>
+      <bpmn:outgoing>flow2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- Output 3: Stay in Operations -->
+    <bpmn:task id="task_ops_3" name="Task Ops 3&#10;(Stay in Ops)">
+      <bpmn:incoming>flow4</bpmn:incoming>
+      <bpmn:outgoing>flow8</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Output 2: Go to Support, then return to Operations -->
+    <bpmn:task id="task_support" name="Task Support&#10;(Cross-Lane)">
+      <bpmn:incoming>flow3</bpmn:incoming>
+      <bpmn:outgoing>flow6</bpmn:outgoing>
+    </bpmn:task>
+    
+    <bpmn:task id="task_ops_return" name="Task Ops Return&#10;(From Support)">
+      <bpmn:incoming>flow6</bpmn:incoming>
+      <bpmn:outgoing>flow7</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Output 1: Stay in Operations -->
+    <bpmn:task id="task_ops_1" name="Task Ops 1&#10;(Stay in Ops)">
+      <bpmn:incoming>flow2</bpmn:incoming>
+      <bpmn:outgoing>flow5</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Parallel Gateway Merge -->
+    <bpmn:parallelGateway id="gateway_merge" name="Merge">
+      <bpmn:incoming>flow5</bpmn:incoming>
+      <bpmn:incoming>flow7</bpmn:incoming>
+      <bpmn:incoming>flow8</bpmn:incoming>
+      <bpmn:outgoing>flow9</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- End -->
+    <bpmn:endEvent id="end1" name="End">
+      <bpmn:incoming>flow9</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow1" sourceRef="start1" targetRef="gateway_split"/>
+    <bpmn:sequenceFlow id="flow2" sourceRef="gateway_split" targetRef="task_ops_1"/>
+    <bpmn:sequenceFlow id="flow3" sourceRef="gateway_split" targetRef="task_support"/>
+    <bpmn:sequenceFlow id="flow4" sourceRef="gateway_split" targetRef="task_ops_3"/>
+    <bpmn:sequenceFlow id="flow5" sourceRef="task_ops_1" targetRef="gateway_merge"/>
+    <bpmn:sequenceFlow id="flow6" sourceRef="task_support" targetRef="task_ops_return"/>
+    <bpmn:sequenceFlow id="flow7" sourceRef="task_ops_return" targetRef="gateway_merge"/>
+    <bpmn:sequenceFlow id="flow8" sourceRef="task_ops_3" targetRef="gateway_merge"/>
+    <bpmn:sequenceFlow id="flow9" sourceRef="gateway_merge" targetRef="end1"/>
+    
+  </bpmn:process>
+
+  <!-- Layout Hints -->
+  <bpmn:manusLayout>
+    <bpmn:pool id="pool1">
+      <bpmn:lane id="lane_ops" name="Operations">
+        <bpmn:element>start1</bpmn:element>
+        <bpmn:element>gateway_split</bpmn:element>
+        <bpmn:element>task_ops_1</bpmn:element>
+        <bpmn:element>task_ops_3</bpmn:element>
+        <bpmn:element>task_ops_return</bpmn:element>
+        <bpmn:element>gateway_merge</bpmn:element>
+        <bpmn:element>end1</bpmn:element>
+      </bpmn:lane>
+      <bpmn:lane id="lane_support" name="Support">
+        <bpmn:element>task_support</bpmn:element>
+      </bpmn:lane>
+    </bpmn:pool>
+  </bpmn:manusLayout>
+
+</bpmn:definitions>

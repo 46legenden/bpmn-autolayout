@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_colocation_cmdb_correct"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:process id="Process_colocation_cmdb_correct" isExecutable="false">
+
+    <!-- Lanes -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="lane_product_mgmt" name="Product Management">
+        <bpmn:flowNodeRef>start_product_setup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_define_products</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_define_addons</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_offerings</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_product_catalog</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_products_ready</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="lane_operations" name="Operations">
+        <bpmn:flowNodeRef>start_data_collection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_scada</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_ita</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_facility</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_infrastructure_cis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_monitor_infrastructure</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>event_alert_detected</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="lane_sales" name="Sales">
+        <bpmn:flowNodeRef>start_customer_inquiry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_consult_customer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_check_catalog</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_select_products</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_order</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="lane_provisioning" name="Provisioning">
+        <bpmn:flowNodeRef>task_review_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_check_ci_availability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_cis_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_procure_cis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_rack</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_power</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_network</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_service_links</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_service_status</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_service_deployed</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="lane_service_mgmt" name="Service Management">
+        <bpmn:flowNodeRef>task_receive_alert</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_impact_analysis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_incident</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_notify_customers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_resolved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_incident_closed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Flow 1: Product Catalog Setup -->
+    <bpmn:startEvent id="start_product_setup" name="Setup Phase"/>
+    <bpmn:task id="task_define_products" name="Define Products&#10;(Rack, Cage)"/>
+    <bpmn:task id="task_define_addons" name="Define Add-ons&#10;(Power, Network)"/>
+    <bpmn:task id="task_create_offerings" name="Create Service&#10;Offerings"/>
+    <bpmn:task id="task_update_product_catalog" name="Update CMDB&#10;Product Catalog"/>
+    <bpmn:endEvent id="end_products_ready" name="Products Ready"/>
+
+    <bpmn:sequenceFlow id="flow1" sourceRef="start_product_setup" targetRef="task_define_products"/>
+    <bpmn:sequenceFlow id="flow2" sourceRef="task_define_products" targetRef="task_define_addons"/>
+    <bpmn:sequenceFlow id="flow3" sourceRef="task_define_addons" targetRef="task_create_offerings"/>
+    <bpmn:sequenceFlow id="flow4" sourceRef="task_create_offerings" targetRef="task_update_product_catalog"/>
+    <bpmn:sequenceFlow id="flow5" sourceRef="task_update_product_catalog" targetRef="end_products_ready"/>
+
+    <!-- Flow 2: Infrastructure Data Collection -->
+    <bpmn:startEvent id="start_data_collection" name="Data Collection"/>
+    <bpmn:parallelGateway id="gateway_parallel_split"/>
+    <bpmn:task id="task_collect_scada" name="Collect SCADA&#10;(Power, Cooling)"/>
+    <bpmn:task id="task_collect_ita" name="Collect ITA&#10;(Network, Cabling)"/>
+    <bpmn:task id="task_collect_facility" name="Collect Facility&#10;(Racks, Rooms)"/>
+    <bpmn:parallelGateway id="gateway_parallel_merge"/>
+    <bpmn:task id="task_update_infrastructure_cis" name="Update CMDB&#10;Infrastructure CIs"/>
+    <bpmn:task id="task_monitor_infrastructure" name="Monitor&#10;Infrastructure"/>
+    <bpmn:intermediateCatchEvent id="event_alert_detected" name="Alert"/>
+
+    <bpmn:sequenceFlow id="flow10" sourceRef="start_data_collection" targetRef="gateway_parallel_split"/>
+    <bpmn:sequenceFlow id="flow11" sourceRef="gateway_parallel_split" targetRef="task_collect_scada"/>
+    <bpmn:sequenceFlow id="flow12" sourceRef="gateway_parallel_split" targetRef="task_collect_ita"/>
+    <bpmn:sequenceFlow id="flow13" sourceRef="gateway_parallel_split" targetRef="task_collect_facility"/>
+    <bpmn:sequenceFlow id="flow14" sourceRef="task_collect_scada" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow15" sourceRef="task_collect_ita" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow16" sourceRef="task_collect_facility" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow17" sourceRef="gateway_parallel_merge" targetRef="task_update_infrastructure_cis"/>
+    <bpmn:sequenceFlow id="flow18" sourceRef="task_update_infrastructure_cis" targetRef="task_monitor_infrastructure"/>
+    <bpmn:sequenceFlow id="flow19" sourceRef="task_monitor_infrastructure" targetRef="event_alert_detected"/>
+
+    <!-- Flow 3: Customer Order to Service -->
+    <bpmn:startEvent id="start_customer_inquiry" name="Customer&#10;Inquiry"/>
+    <bpmn:task id="task_consult_customer" name="Consult&#10;Customer"/>
+    <bpmn:task id="task_check_catalog" name="Check Catalog&#10;(CMDB)"/>
+    <bpmn:task id="task_select_products" name="Select&#10;Products"/>
+    <bpmn:task id="task_create_order" name="Create Order"/>
+    <bpmn:task id="task_review_order" name="Review Order"/>
+    <bpmn:task id="task_check_ci_availability" name="Check CI&#10;Availability"/>
+    <bpmn:exclusiveGateway id="gateway_cis_available" name="CIs&#10;Available?"/>
+    <bpmn:task id="task_procure_cis" name="Procure CIs"/>
+    <bpmn:task id="task_assign_rack" name="Assign Rack"/>
+    <bpmn:task id="task_assign_power" name="Assign Power&#10;(PDU A/B)"/>
+    <bpmn:task id="task_assign_network" name="Assign Network&#10;Port"/>
+    <bpmn:task id="task_create_service_links" name="Create Service-CI&#10;Links (CMDB)"/>
+    <bpmn:task id="task_update_service_status" name="Update Service&#10;Status"/>
+    <bpmn:endEvent id="end_service_deployed" name="Service&#10;Deployed"/>
+
+    <bpmn:sequenceFlow id="flow20" sourceRef="start_customer_inquiry" targetRef="task_consult_customer"/>
+    <bpmn:sequenceFlow id="flow21" sourceRef="task_consult_customer" targetRef="task_check_catalog"/>
+    <bpmn:sequenceFlow id="flow22" sourceRef="task_check_catalog" targetRef="task_select_products"/>
+    <bpmn:sequenceFlow id="flow23" sourceRef="task_select_products" targetRef="task_create_order"/>
+    <bpmn:sequenceFlow id="flow24" sourceRef="task_create_order" targetRef="task_review_order"/>
+    <bpmn:sequenceFlow id="flow25" sourceRef="task_review_order" targetRef="task_check_ci_availability"/>
+    <bpmn:sequenceFlow id="flow26" sourceRef="task_check_ci_availability" targetRef="gateway_cis_available"/>
+    <bpmn:sequenceFlow id="flow27" name="Yes" sourceRef="gateway_cis_available" targetRef="task_assign_rack"/>
+    <bpmn:sequenceFlow id="flow27a" name="No" sourceRef="gateway_cis_available" targetRef="task_procure_cis"/>
+    <bpmn:sequenceFlow id="flow27b" sourceRef="task_procure_cis" targetRef="task_check_ci_availability"/>
+    <bpmn:sequenceFlow id="flow28" sourceRef="task_assign_rack" targetRef="task_assign_power"/>
+    <bpmn:sequenceFlow id="flow29" sourceRef="task_assign_power" targetRef="task_assign_network"/>
+    <bpmn:sequenceFlow id="flow30" sourceRef="task_assign_network" targetRef="task_create_service_links"/>
+    <bpmn:sequenceFlow id="flow31" sourceRef="task_create_service_links" targetRef="task_update_service_status"/>
+    <bpmn:sequenceFlow id="flow32" sourceRef="task_update_service_status" targetRef="end_service_deployed"/>
+
+    <!-- Flow 4: Incident Management (triggered by alert) -->
+    <bpmn:task id="task_receive_alert" name="Receive Alert"/>
+    <bpmn:task id="task_impact_analysis" name="Impact Analysis&#10;(CMDB)"/>
+    <bpmn:task id="task_create_incident" name="Create Incident"/>
+    <bpmn:task id="task_notify_customers" name="Notify&#10;Customers"/>
+    <bpmn:exclusiveGateway id="gateway_resolved" name="Resolved?"/>
+    <bpmn:endEvent id="end_incident_closed" name="Incident&#10;Closed"/>
+
+    <bpmn:sequenceFlow id="flow40" sourceRef="event_alert_detected" targetRef="task_receive_alert"/>
+    <bpmn:sequenceFlow id="flow41" sourceRef="task_receive_alert" targetRef="task_impact_analysis"/>
+    <bpmn:sequenceFlow id="flow42" sourceRef="task_impact_analysis" targetRef="task_create_incident"/>
+    <bpmn:sequenceFlow id="flow43" sourceRef="task_create_incident" targetRef="task_notify_customers"/>
+    <bpmn:sequenceFlow id="flow44" sourceRef="task_notify_customers" targetRef="gateway_resolved"/>
+    <bpmn:sequenceFlow id="flow45" name="Yes" sourceRef="gateway_resolved" targetRef="end_incident_closed"/>
+    <bpmn:sequenceFlow id="flow46" name="No" sourceRef="gateway_resolved" targetRef="task_impact_analysis"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

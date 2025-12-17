@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_minimal_test"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="pool1" name="Test Pool" processRef="Process_1"/>
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="lane_operations" name="Operations">
+        <bpmn:flowNodeRef>start_data_collection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_scada</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_ita</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_facility</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_infrastructure_cis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_monitor_infrastructure</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>event_alert_detected</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Infrastructure Data Collection (Operations Lane) -->
+    <bpmn:startEvent id="start_data_collection" name="Data Collection">
+      <bpmn:outgoing>flow10</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <bpmn:parallelGateway id="gateway_parallel_split">
+      <bpmn:incoming>flow10</bpmn:incoming>
+      <bpmn:outgoing>flow11</bpmn:outgoing>
+      <bpmn:outgoing>flow12</bpmn:outgoing>
+      <bpmn:outgoing>flow13</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <bpmn:task id="task_collect_scada" name="Collect SCADA&#10;(Power, Cooling)">
+      <bpmn:incoming>flow11</bpmn:incoming>
+      <bpmn:outgoing>flow14</bpmn:outgoing>
+    </bpmn:task>
+    
+    <bpmn:task id="task_collect_ita" name="Collect ITA&#10;(Network, Cabling)">
+      <bpmn:incoming>flow12</bpmn:incoming>
+      <bpmn:outgoing>flow15</bpmn:outgoing>
+    </bpmn:task>
+    
+    <bpmn:task id="task_collect_facility" name="Collect Facility&#10;(Racks, Rooms)">
+      <bpmn:incoming>flow13</bpmn:incoming>
+      <bpmn:outgoing>flow16</bpmn:outgoing>
+    </bpmn:task>
+    
+    <bpmn:parallelGateway id="gateway_parallel_merge">
+      <bpmn:incoming>flow14</bpmn:incoming>
+      <bpmn:incoming>flow15</bpmn:incoming>
+      <bpmn:incoming>flow16</bpmn:incoming>
+      <bpmn:outgoing>flow17</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <bpmn:task id="task_update_infrastructure_cis" name="Update CMDB&#10;Infrastructure CIs">
+      <bpmn:incoming>flow17</bpmn:incoming>
+      <bpmn:outgoing>flow18</bpmn:outgoing>
+    </bpmn:task>
+    
+    <bpmn:task id="task_monitor_infrastructure" name="Monitor&#10;Infrastructure">
+      <bpmn:incoming>flow18</bpmn:incoming>
+      <bpmn:outgoing>flow19</bpmn:outgoing>
+    </bpmn:task>
+    
+    <bpmn:intermediateCatchEvent id="event_alert_detected" name="Alert">
+      <bpmn:incoming>flow19</bpmn:incoming>
+    </bpmn:intermediateCatchEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow10" sourceRef="start_data_collection" targetRef="gateway_parallel_split"/>
+    <bpmn:sequenceFlow id="flow11" sourceRef="gateway_parallel_split" targetRef="task_collect_scada"/>
+    <bpmn:sequenceFlow id="flow12" sourceRef="gateway_parallel_split" targetRef="task_collect_ita"/>
+    <bpmn:sequenceFlow id="flow13" sourceRef="gateway_parallel_split" targetRef="task_collect_facility"/>
+    <bpmn:sequenceFlow id="flow14" sourceRef="task_collect_scada" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow15" sourceRef="task_collect_ita" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow16" sourceRef="task_collect_facility" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow17" sourceRef="gateway_parallel_merge" targetRef="task_update_infrastructure_cis"/>
+    <bpmn:sequenceFlow id="flow18" sourceRef="task_update_infrastructure_cis" targetRef="task_monitor_infrastructure"/>
+    <bpmn:sequenceFlow id="flow19" sourceRef="task_monitor_infrastructure" targetRef="event_alert_detected"/>
+    
+  </bpmn:process>
+
+  <!-- Layout Hints -->
+  <bpmn:manusLayout>
+    <bpmn:pool id="pool1">
+      <bpmn:lane id="lane_operations" name="Operations">
+        <bpmn:element>start_data_collection</bpmn:element>
+        <bpmn:element>gateway_parallel_split</bpmn:element>
+        <bpmn:element>task_collect_scada</bpmn:element>
+        <bpmn:element>task_collect_ita</bpmn:element>
+        <bpmn:element>task_collect_facility</bpmn:element>
+        <bpmn:element>gateway_parallel_merge</bpmn:element>
+        <bpmn:element>task_update_infrastructure_cis</bpmn:element>
+        <bpmn:element>task_monitor_infrastructure</bpmn:element>
+        <bpmn:element>event_alert_detected</bpmn:element>
+      </bpmn:lane>
+    </bpmn:pool>
+  </bpmn:manusLayout>
+
+</bpmn:definitions>

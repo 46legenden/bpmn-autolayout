@@ -57,10 +57,11 @@ export function calculateWaypoint(sourcePos, targetPos, exitSide, entrySide, dir
     waypoint.row = sourcePos.row;
     waypoint.layer = targetPos.layer;
   } else {
-    // Exit cross lane (down/up): layer stays from source, lane and row from target
+    // Exit cross lane (down/up): layer stays from source, lane from target, row from SOURCE
+    // This creates horizontal movement first (staying in source row), then vertical to target
     waypoint.layer = sourcePos.layer;
     waypoint.lane = targetPos.lane;
-    waypoint.row = targetPos.row;
+    waypoint.row = sourcePos.row;  // FIX: Use source row, not target row!
   }
 
   // Override with entry side if different

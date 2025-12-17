@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>2-Lane Parallel Gateway Test</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+    #canvas { border: 1px solid #ccc; height: 90vh; }
+    h1 { margin: 0 0 10px 0; font-size: 18px; }
+  </style>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.development.js"></script>
+</head>
+<body>
+  <h1>2-Lane Parallel Gateway Test - Cross-Lane Flow</h1>
+  <div id="canvas"></div>
+
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+
+    fetch('minimal-2lane-parallel-output.bpmn')
+      .then(response => response.text())
+      .then(xml => {
+        viewer.importXML(xml).then(() => {
+          viewer.get('canvas').zoom('fit-viewport');
+        }).catch(err => {
+          console.error('Error rendering BPMN:', err);
+        });
+      });
+  </script>
+</body>
+</html>

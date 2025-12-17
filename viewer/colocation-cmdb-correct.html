@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Co-Location CMDB (Correct)</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #canvas { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="canvas"></div>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    
+    fetch('colocation-cmdb-correct-output.bpmn')
+      .then(r => r.text())
+      .then(xml => viewer.importXML(xml))
+      .then(() => {
+        const canvas = viewer.get('canvas');
+        canvas.zoom('fit-viewport');
+      })
+      .catch(err => console.error('Error loading diagram:', err));
+  </script>
+</body>
+</html>

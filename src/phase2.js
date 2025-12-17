@@ -12,6 +12,7 @@
 import { calculateWaypoint } from './waypoint-helper.js';
 import { checkAllCollisions } from './collision-checker.js';
 import { assignRows } from './row-assigner.js';
+import { getMatrixCell, markCrossLaneFlow, isPositionOccupiedByFlow, markElement, findFreeLayer } from './flow-matrix.js';
 
 // Module-level variable to store pools for getLaneIndex
 let _pools = new Map();
@@ -175,7 +176,7 @@ export function getCrossLaneDirection(flow, elementLanes, lanes, directions) {
  * @param {Map} flows - Flows map (to check other outputs)
  * @returns {Object} - { lane, layer, row }
  */
-export function assignSameLanePosition(sourceId, targetId, positions, elementLanes, elements, flows) {
+export function assignSameLanePosition(sourceId, targetId, positions, elementLanes, elements, flows, matrix) {
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
   
@@ -190,15 +191,19 @@ export function assignSameLanePosition(sourceId, targetId, positions, elementLan
     layerOffset = 0;
   }
   
-  const newLayer = sourcePos.layer + layerOffset;
+  const proposedLayer = sourcePos.layer + layerOffset;
   
   if (existingPos) {
     // Update to maximum layer
-    if (newLayer > existingPos.layer) {
-      existingPos.layer = newLayer;
+    const finalLayer = Math.max(existingPos.layer, proposedLayer);
+    if (finalLayer > existingPos.layer) {
+      existingPos.layer = finalLayer;
     }
     return existingPos;
   }
+
+  // Find free layer (check flow and element occupation)
+  const newLayer = findFreeLayer(matrix, positions, lane, proposedLayer, targetId);
 
   const targetPos = {
     lane,
@@ -364,9 +369,10 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
  * @param {string} targetId - Target element ID
  * @param {Map} positions - Positions map
  * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} matrix - Flow reservation matrix
  * @returns {Object} - { lane, layer, row }
  */
-export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes, flows, elements) {
+export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes, flows, elements, matrix) {
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
   const sourceLane = elementLanes.get(sourceId);
@@ -433,39 +439,12 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
     }
   }
   
-  // Check if there are other elements in the same layer (collision detection)
-  let targetLayer = sourcePos.layer + multiInputOffset;
-  let hasCollision = false;
+  // Find next free layer (checks both flow occupation and element occupation)
+  const proposedLayer = sourcePos.layer + multiInputOffset;
+  const targetLayer = findFreeLayer(matrix, positions, lane, proposedLayer, targetId);
   
-  // Check all elements in the same layer
-  for (const [elemId, elemPos] of positions) {
-    if (elemId !== sourceId && elemPos.layer === targetLayer) {
-      // Element in same layer - check if it's in a different lane
-      const elemLane = elementLanes.get(elemId);
-      if (DEBUG) console.log(`  Checking ${elemId} (${elemLane}, layer ${elemPos.layer}, row ${elemPos.row})`);
-      if (elemLane !== lane && elemLane !== sourceLane) {
-        // Element in different lane but same layer - check if it's BETWEEN source and target
-        const elemLaneIndex = getLaneIndex(elemLane, lanes);
-        if (elemLaneIndex > minLaneIndex && elemLaneIndex < maxLaneIndex) {
-          // Element is between source and target lanes - potential collision
-          if (DEBUG) console.log(`    → COLLISION! (element between source and target lanes)`);
-          hasCollision = true;
-          break;
-        } else {
-          if (DEBUG) console.log(`    → No collision (element not between source and target)`);
-        }
-      } else {
-        if (DEBUG) console.log(`    → No collision (same lane as source or target)`);
-      }
-    }
-  }
-  
-  // If collision detected, move to next layer
-  if (hasCollision) {
-    if (DEBUG) console.log(`  → Moving target to layer ${targetLayer + 1}`);
-    targetLayer = sourcePos.layer + 1;
-  } else {
-    if (DEBUG) console.log(`  → No collision, keeping layer ${targetLayer}`);
+  if (DEBUG && targetLayer > proposedLayer) {
+    console.log(`  → Position occupied, moved from layer ${proposedLayer} to ${targetLayer}`);
   }
 
   const targetPos = {
@@ -695,25 +674,13 @@ export function sortGatewayOutputs(outputFlowIds, flows, elementLanes, lanes, ga
  * @returns {Array} - Array of row values
  */
 export function assignSymmetricRows(outputCount) {
-  if (outputCount === 1) {
-    return [0];
-  }
-
+  // Row 0 is always the main "Happy Path" row
+  // All outputs start at Row 0 and go downwards: [0, 1, 2, 3, ...]
+  // No negative rows, no symmetry - just simple sequential assignment
   const rows = [];
-  const half = Math.floor(outputCount / 2);
-
-  if (outputCount % 2 === 0) {
-    // Even: [0, 1, 2, ...] for 2, 4, 6, ...
-    for (let i = 0; i < outputCount; i++) {
-      rows.push(i);
-    }
-  } else {
-    // Odd: [-1, 0, 1] for 3, [-2, -1, 0, 1, 2] for 5, ...
-    for (let i = -half; i <= half; i++) {
-      rows.push(i);
-    }
+  for (let i = 0; i < outputCount; i++) {
+    rows.push(i);
   }
-
   return rows;
 }
 
@@ -793,7 +760,7 @@ export function determineGatewayOccupiedSides(gatewayId, elements, flows, positi
  * @param {Object} directions - Direction mappings
  * @returns {Map} - targetId → { lane, layer, row }
  */
-export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows, lanes, occupiedSides = new Set(), directions = {}) {
+export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows, lanes, matrix, occupiedSides = new Set(), directions = {}) {
   const gatewayPos = positions.get(gatewayId);
   const gatewayLane = elementLanes.get(gatewayId);
   const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
@@ -908,16 +875,21 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   // Same-lane outputs with symmetric rows (always use layer + 1)
   for (let i = 0; i < sameLaneOutputs.length; i++) {
     const { targetId, targetLane } = sameLaneOutputs[i];
-    const newLayer = gatewayPos.layer + 1;
+    const proposedLayer = gatewayPos.layer + 1;
     const existingPos = positions.get(targetId);
     
     if (existingPos) {
       // Target already has a position - update to maximum layer
-      if (newLayer > existingPos.layer) {
-        existingPos.layer = newLayer;
+      const finalLayer = Math.max(existingPos.layer, proposedLayer);
+      if (finalLayer > existingPos.layer) {
+        existingPos.layer = finalLayer;
       }
       outputPositions.set(targetId, existingPos);
     } else {
+      // Find free layer (check flow and element occupation)
+      // Pass row so elements in different rows can share the same layer
+      const newLayer = findFreeLayer(matrix, positions, targetLane, proposedLayer, sameLaneRows[i], targetId);
+      
       const targetPos = {
         lane: targetLane,
         layer: newLayer,
@@ -948,25 +920,35 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   
   // Create positions with assigned rows
   for (const { targetId, targetLane, assignedRow } of crossLaneOutputs) {
-    const newLayer = gatewayPos.layer + layerOffset;
+    const proposedLayer = gatewayPos.layer + layerOffset;
     
     const DEBUG_CALC = process.env.DEBUG_GATEWAY === 'true';
     if (DEBUG_CALC && gatewayId === 'gateway3_split') {
-      console.log(`\n  Setting ${targetId}: gatewayPos.layer=${gatewayPos.layer} + layerOffset=${layerOffset} = ${newLayer}`);
+      console.log(`\n  Setting ${targetId}: gatewayPos.layer=${gatewayPos.layer} + layerOffset=${layerOffset} = ${proposedLayer}`);
     }
     const existingPos = positions.get(targetId);
     
     if (existingPos) {
       // Target already has a position - update to maximum layer
-      if (newLayer > existingPos.layer) {
-        existingPos.layer = newLayer;
+      const finalLayer = Math.max(existingPos.layer, proposedLayer);
+      if (finalLayer > existingPos.layer) {
+        existingPos.layer = finalLayer;
       }
       outputPositions.set(targetId, existingPos);
     } else {
+      // Find free layer (check flow and element occupation)
+      // Pass row so elements in different rows can share the same layer
+      const targetRow = assignedRow || 0;
+      const newLayer = findFreeLayer(matrix, positions, targetLane, proposedLayer, targetRow, targetId);
+      
+      if (DEBUG_CALC && newLayer > proposedLayer) {
+        console.log(`  → Position occupied, moved from layer ${proposedLayer} to ${newLayer}`);
+      }
+      
       const targetPos = {
         lane: targetLane,
         layer: newLayer,
-        row: assignedRow || 0  // Use assigned row, fallback to 0
+        row: targetRow
       };
       positions.set(targetId, targetPos);
       outputPositions.set(targetId, targetPos);
@@ -1750,6 +1732,20 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
     
     const hasMultipleOutputs = outputFlows.length > 1;
     
+    // Validate: Split gateways must have at least 2 outputs
+    // But merge gateways (multiple inputs, one output) are valid
+    if (isGateway && outputFlows.length === 1) {
+      // Check if this is a merge gateway (multiple inputs)
+      const inputFlows = sourceElement.incoming ? sourceElement.incoming.length : 0;
+      const isMergeGateway = inputFlows > 1;
+      
+      if (!isMergeGateway) {
+        console.error(`\n❌ INVALID BPMN: Gateway "${sourceId}" has only one output flow.`);
+        console.error(`   Split gateways (Parallel, XOR, Inclusive) must have at least 2 outputs.`);
+        console.error(`   Either add a second output path or remove the gateway.\n`);
+      }
+    }
+    
     if (isGateway && hasMultipleOutputs) {
       // Handle gateway outputs separately
       // First, ensure gateway has a position
@@ -1776,7 +1772,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
       const occupiedSides = determineGatewayOccupiedSides(sourceId, elements, flows, positions, elementLanes, lanes, directions, backEdgeSet);
       
       // Assign positions to gateway output targets
-      const { outputPositions, layerOffset } = assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows, lanes, occupiedSides, directions);
+      const { outputPositions, layerOffset } = assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows, lanes, matrix, occupiedSides, directions);
       
       // Create flow info for this gateway output
       const flowInfo = createGatewayOutputFlowInfo(
@@ -1825,7 +1821,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
         
         if (pathFree) {
           // Free path - direct vertical connection
-          assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes, flows, elements);
+          assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes, flows, elements, matrix);
           const flowInfo = createCrossLaneFreeFlowInfo(
             flowId,
             sourceId,
@@ -1850,20 +1846,8 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
           const targetLaneIndex = getLaneIndex(targetLane, lanes);
           const flowDirection = targetLaneIndex > sourceLaneIndex ? 'down' : 'up';
           
-          // Mark all lanes in the path with this flow direction
-          const laneIds = Array.from(lanes.keys());
-          const minLaneIndex = Math.min(sourceLaneIndex, targetLaneIndex);
-          const maxLaneIndex = Math.max(sourceLaneIndex, targetLaneIndex);
-          
-          for (let i = minLaneIndex; i <= maxLaneIndex; i++) {
-            const laneId = laneIds[i];
-            const laneMatrix = matrix.get(laneId);
-            if (!laneMatrix.has(sourcePos.layer)) {
-              laneMatrix.set(sourcePos.layer, { elements: [], flowAlongLane: null, flowCrossLane: null });
-            }
-            const cell = laneMatrix.get(sourcePos.layer);
-            cell.flowCrossLane = flowDirection;
-          }
+          // Mark cross-lane flow in matrix (reserves space in intermediate lanes)
+          markCrossLaneFlow(matrix, lanes, sourceLane, targetLane, sourcePos.layer);
         } else {
           // Blocked path - L-shaped with waypoint
           assignCrossLaneBlockedPosition(sourceId, targetId, positions, elementLanes);
@@ -1892,7 +1876,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
       } else {
         // Same-lane flow
         const before = positions.get(targetId)?.layer;
-        assignSameLanePosition(sourceId, targetId, positions, elementLanes, elements, flows);
+        assignSameLanePosition(sourceId, targetId, positions, elementLanes, elements, flows, matrix);
         const after = positions.get(targetId)?.layer;
         if (DEBUG) console.log(`  ${flowId}: ${sourceId} -> ${targetId} (same-lane, layer ${before || 'new'} -> ${after})`);
         
