@@ -19,18 +19,6 @@
         <bpmn:flowNodeRef>end_products_ready</bpmn:flowNodeRef>
       </bpmn:lane>
 
-      <bpmn:lane id="lane_operations" name="Operations">
-        <bpmn:flowNodeRef>start_data_collection</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>gateway_parallel_split</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>task_collect_scada</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>task_collect_ita</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>task_collect_facility</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>gateway_parallel_merge</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>task_update_infrastructure_cis</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>task_monitor_infrastructure</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>event_alert_detected</bpmn:flowNodeRef>
-      </bpmn:lane>
-
       <bpmn:lane id="lane_sales" name="Sales">
         <bpmn:flowNodeRef>start_customer_inquiry</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>task_consult_customer</bpmn:flowNodeRef>
@@ -52,11 +40,24 @@
         <bpmn:flowNodeRef>end_service_deployed</bpmn:flowNodeRef>
       </bpmn:lane>
 
+      <bpmn:lane id="lane_operations" name="Operations">
+        <bpmn:flowNodeRef>start_data_collection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_scada</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_ita</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_facility</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_infrastructure_cis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_monitor_infrastructure</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>event_alert_detected</bpmn:flowNodeRef>
+      </bpmn:lane>
+
       <bpmn:lane id="lane_service_mgmt" name="Service Management">
         <bpmn:flowNodeRef>task_receive_alert</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>task_impact_analysis</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>task_create_incident</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>task_notify_customers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_escalation</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>gateway_resolved</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>end_incident_closed</bpmn:flowNodeRef>
       </bpmn:lane>
@@ -136,6 +137,7 @@
     <bpmn:task id="task_impact_analysis" name="Impact Analysis&#10;(CMDB)"/>
     <bpmn:task id="task_create_incident" name="Create Incident"/>
     <bpmn:task id="task_notify_customers" name="Notify&#10;Customers"/>
+    <bpmn:exclusiveGateway id="gateway_escalation" name="Escalate?"/>
     <bpmn:exclusiveGateway id="gateway_resolved" name="Resolved?"/>
     <bpmn:endEvent id="end_incident_closed" name="Incident&#10;Closed"/>
 
@@ -143,7 +145,9 @@
     <bpmn:sequenceFlow id="flow41" sourceRef="task_receive_alert" targetRef="task_impact_analysis"/>
     <bpmn:sequenceFlow id="flow42" sourceRef="task_impact_analysis" targetRef="task_create_incident"/>
     <bpmn:sequenceFlow id="flow43" sourceRef="task_create_incident" targetRef="task_notify_customers"/>
-    <bpmn:sequenceFlow id="flow44" sourceRef="task_notify_customers" targetRef="gateway_resolved"/>
+    <bpmn:sequenceFlow id="flow44" sourceRef="task_notify_customers" targetRef="gateway_escalation"/>
+    <bpmn:sequenceFlow id="flow44a" name="Continue" sourceRef="gateway_escalation" targetRef="gateway_resolved"/>
+    <bpmn:sequenceFlow id="flow44b" name="Escalate" sourceRef="gateway_escalation" targetRef="task_consult_customer"/>
     <bpmn:sequenceFlow id="flow45" name="Yes" sourceRef="gateway_resolved" targetRef="end_incident_closed"/>
     <bpmn:sequenceFlow id="flow46" name="No" sourceRef="gateway_resolved" targetRef="task_impact_analysis"/>
 

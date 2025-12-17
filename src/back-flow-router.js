@@ -9,6 +9,7 @@
 
 import { isVerticalPathClear, isExitSideAvailable, getTargetVerticalPosition } from './path-checker.js';
 import { calculateConnectionPoint } from './phase3.js';
+import { routeSameLaneBackFlow } from './same-lane-back-flow.js';
 
 // Constants from phase3
 const CORRIDOR_OFFSET = 25;
@@ -31,6 +32,9 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   const sourcePos = positions.get(flowInfo.sourceId);
   const targetPos = positions.get(flowInfo.targetId);
   
+  // Check if same-lane or cross-lane back-flow
+  const isSameLane = sourcePos.lane === targetPos.lane;
+  
   // Determine if target is above or below
   const targetPosition = getTargetVerticalPosition(sourcePos, targetPos, lanes);
   
@@ -38,7 +42,14 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   const upAvailable = isExitSideAvailable(flowInfo.sourceId, directions.oppCrossLane, flowInfos, flowInfo.flowId);
   const downAvailable = isExitSideAvailable(flowInfo.sourceId, directions.crossLane, flowInfos, flowInfo.flowId);
   const rightAvailable = isExitSideAvailable(flowInfo.sourceId, directions.alongLane, flowInfos, flowInfo.flowId);
+  const leftAvailable = isExitSideAvailable(flowInfo.sourceId, directions.oppAlongLane, flowInfos, flowInfo.flowId);
   
+  // Use different routing strategy for same-lane vs cross-lane
+  if (isSameLane) {
+    return routeSameLaneBackFlow(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, positions, coordinates, targetPosition, upAvailable, downAvailable, leftAvailable, rightAvailable, directions, flowInfos);
+  }
+  
+  // Cross-lane back-flow routing:
   // Strategy 1: Try direct path (up or down)
   if (targetPosition === "above" && upAvailable) {
     // Check if direct upward path is clear
