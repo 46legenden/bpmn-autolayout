@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Visible Merge Gateway Test</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #canvas { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="canvas"></div>
+  <script>
+    fetch('incident-visible-merge.bpmn')
+      .then(r => r.text())
+      .then(xml => {
+        const viewer = new BpmnJS({ container: '#canvas' });
+        viewer.importXML(xml);
+      });
+  </script>
+</body>
+</html>

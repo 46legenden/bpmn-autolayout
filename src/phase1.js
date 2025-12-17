@@ -339,6 +339,16 @@ export function parseXML(bpmnXml) {
         }
       }
     }
+    
+    // Fourth pass: assign lane to each element
+    for (const [laneId, lane] of lanes) {
+      for (const elementId of lane.elements) {
+        const element = elements.get(elementId);
+        if (element) {
+          element.lane = laneId;
+        }
+      }
+    }
 
     // If no pools were found, create a default pool for all lanes
     if (pools.size === 0 && lanes.size > 0) {
@@ -364,6 +374,18 @@ export function parseXML(bpmnXml) {
       }
     }
 
+    // Validate that all elements have lane assignments (if lanes exist)
+    if (lanes.size > 0) {
+      for (const [elementId, element] of elements) {
+        // Skip message flows - they don't need lane assignments
+        if (element.type === 'messageFlow') continue;
+        
+        if (!element.lane || element.lane === 'undefined') {
+          errors.push(`Element "${elementId}" (${element.name || 'unnamed'}, type: ${element.type}) has no lane assignment. All flow elements must be assigned to a lane when using lane-based layouts.`);
+        }
+      }
+    }
+    
     return {
       elements,
       flows,
@@ -511,19 +533,22 @@ export function validateBPMN(graph) {
 export function preProcess(graph, config = {}) {
   const { elements, flows } = graph;
 
-  // If xorMergeGateways is true, keep them
-  if (config.xorMergeGateways === true) {
-    return graph;
-  }
+  // NEW RULE: Always keep merge gateways (they are part of proper BPMN modeling)
+  // Visualization (show/hide) is controlled by Phase 3, not here
+  // The old xorMergeGateways config is deprecated
+  
+  // For backward compatibility: if explicitly set to false, remove them
+  if (config.xorMergeGateways === false) {
+    console.warn('[DEPRECATED] config.xorMergeGateways=false is deprecated. Merge gateways should be kept in BPMN.');
+    
+    // Find XOR merge gateways (exclusiveGateway with multiple incoming, one outgoing)
+    const xorMergeGateways = Array.from(elements.values()).filter(element => {
+      return element.type === 'exclusiveGateway' &&
+             element.incoming.length > 1 &&
+             element.outgoing.length === 1;
+    });
 
-  // Find XOR merge gateways (exclusiveGateway with multiple incoming, one outgoing)
-  const xorMergeGateways = Array.from(elements.values()).filter(element => {
-    return element.type === 'exclusiveGateway' &&
-           element.incoming.length > 1 &&
-           element.outgoing.length === 1;
-  });
-
-  // Remove XOR merge gateways and reconnect flows
+    // Remove XOR merge gateways and reconnect flows
   for (const gateway of xorMergeGateways) {
     const incomingFlows = gateway.incoming.map(id => flows.get(id));
     const outgoingFlow = flows.get(gateway.outgoing[0]);
@@ -549,8 +574,12 @@ export function preProcess(graph, config = {}) {
     elements.delete(gateway.id);
     flows.delete(gateway.outgoing[0]);
   }
-
-  return { elements, flows, lanes: graph.lanes, pools: graph.pools };
+    
+    return { elements, flows, lanes: graph.lanes, pools: graph.pools };
+  }
+  
+  // Default: Keep all merge gateways
+  return graph;
 }
 
 /**

@@ -240,7 +240,7 @@ export function calculateConnectionPoint(coord, side) {
  * @param {Object} directions - Direction mappings
  * @returns {Array} - Array of {x, y} waypoints
  */
-export function calculateFlowWaypoints(flowInfo, coordinates, lanes, directions, laneBounds) {
+export function calculateFlowWaypoints(flowInfo, coordinates, lanes, directions, laneBounds, elements, flows) {
   const pixelWaypoints = [];
   
   // Start point
@@ -769,6 +769,100 @@ function calculatePoolBounds(pools, laneBounds, coordinates, lanes) {
 import { checkFlowCollisions } from './flow-collision-detector.js';
 import { checkColumnAlignment } from './column-alignment-checker.js';
 
+/**
+ * Merge flows for hidden XOR merge gateways
+ * For each hidden merge gateway:
+ * - Find incoming flows (targetRef = gateway)
+ * - Find outgoing flow (sourceRef = gateway, should be exactly 1)
+ * - Update incoming flows: targetRef = outgoing.targetRef
+ * - Merge waypoints: incoming waypoints + gateway center + outgoing waypoints
+ * - Delete outgoing flow
+ * @param {Map} flows - Flow map (will be modified)
+ * @param {Map} flowWaypoints - Flow waypoints map (will be modified)
+ * @param {Map} elements - Element map
+ * @param {Map} coordinates - Element coordinates
+ */
+function mergeFlowsForHiddenGateways(flows, flowWaypoints, elements, coordinates) {
+  const gatewaysToProcess = [];
+  
+  // Find all hidden XOR merge gateways
+  for (const [elementId, element] of elements) {
+    if (isXorMergeGateway(element, flows)) {
+      gatewaysToProcess.push(elementId);
+    }
+  }
+  
+  // Process each hidden merge gateway
+  for (const gatewayId of gatewaysToProcess) {
+    // Find incoming and outgoing flows
+    const incomingFlows = [];
+    let outgoingFlow = null;
+    
+    for (const [flowId, flow] of flows) {
+      if (flow.targetRef === gatewayId) {
+        incomingFlows.push({ flowId, flow });
+      }
+      if (flow.sourceRef === gatewayId) {
+        outgoingFlow = { flowId, flow };
+      }
+    }
+    
+    // Validate: should have exactly 1 outgoing flow
+    if (!outgoingFlow) {
+      console.warn(`Hidden merge gateway ${gatewayId} has no outgoing flow!`);
+      continue;
+    }
+    
+    if (incomingFlows.length === 0) {
+      console.warn(`Hidden merge gateway ${gatewayId} has no incoming flows!`);
+      continue;
+    }
+    
+    // Get gateway center coordinates
+    const gatewayCoord = coordinates.get(gatewayId);
+    if (!gatewayCoord) {
+      console.warn(`Hidden merge gateway ${gatewayId} has no coordinates!`);
+      continue;
+    }
+    
+    const gatewayCenterX = gatewayCoord.x + gatewayCoord.width / 2;
+    const gatewayCenterY = gatewayCoord.y + gatewayCoord.height / 2;
+    
+    // Get outgoing flow waypoints
+    const outgoingWaypoints = flowWaypoints.get(outgoingFlow.flowId);
+    if (!outgoingWaypoints || outgoingWaypoints.length === 0) {
+      console.warn(`Outgoing flow ${outgoingFlow.flowId} has no waypoints!`);
+      continue;
+    }
+    
+    // Merge each incoming flow with the outgoing flow
+    for (const { flowId, flow } of incomingFlows) {
+      // Update targetRef to bypass gateway
+      flow.targetRef = outgoingFlow.flow.targetRef;
+      
+      // Merge waypoints
+      const incomingWaypoints = flowWaypoints.get(flowId);
+      if (!incomingWaypoints || incomingWaypoints.length === 0) {
+        console.warn(`Incoming flow ${flowId} has no waypoints!`);
+        continue;
+      }
+      
+      // Combine: incoming (except last) + gateway center + outgoing (except first)
+      const mergedWaypoints = [
+        ...incomingWaypoints.slice(0, -1),  // All except last (gateway entry)
+        { x: gatewayCenterX, y: gatewayCenterY },  // Gateway center
+        ...outgoingWaypoints.slice(1)  // All except first (gateway exit)
+      ];
+      
+      flowWaypoints.set(flowId, mergedWaypoints);
+    }
+    
+    // Delete outgoing flow (it's been merged into incoming flows)
+    flows.delete(outgoingFlow.flowId);
+    flowWaypoints.delete(outgoingFlow.flowId);
+  }
+}
+
 export function phase3(phase2Result, elements, lanes, directions, pools = new Map(), flows = new Map()) {
   const { positions, flowInfos } = phase2Result;
   
@@ -803,9 +897,14 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
       flowWaypoints.set(flowId, waypoints);
     } else {
       // Normal flows: convert logical waypoints to pixel
-      const waypoints = calculateFlowWaypoints(flowInfo, coordinates, lanes, directions, laneBounds);
+      const waypoints = calculateFlowWaypoints(flowInfo, coordinates, lanes, directions, laneBounds, elements, flows);
       flowWaypoints.set(flowId, waypoints);
     }
+  }
+  
+  // Merge flows for hidden XOR merge gateways
+  if (directions && directions.hideXorMergeGateways) {
+    mergeFlowsForHiddenGateways(flows, flowWaypoints, elements, coordinates);
   }
   
   // Calculate pool bounds (encompassing all lanes in each pool)
@@ -1127,12 +1226,36 @@ function calculateElementLabelPosition(elementId, coordinates, flowWaypoints, fl
   }
 }
 
-export function generateElementDI(elements, coordinates, flowWaypoints, flows) {
+/**
+ * Check if element is an XOR merge gateway
+ * @param {Object} element - Element object
+ * @param {Map} flows - Flows map
+ * @returns {boolean} - True if XOR merge gateway
+ */
+function isXorMergeGateway(element, flows) {
+  // Must be an exclusive gateway
+  if (element.type !== 'exclusiveGateway') return false;
+  
+  // Must have exactly 1 outgoing flow (merge)
+  if (!element.outgoing || element.outgoing.length !== 1) return false;
+  
+  // Must have more than 1 incoming flow
+  if (!element.incoming || element.incoming.length <= 1) return false;
+  
+  return true;
+}
+
+export function generateElementDI(elements, coordinates, flowWaypoints, flows, directions) {
   let xml = '';
   
   for (const [elementId, element] of elements) {
     const coord = coordinates.get(elementId);
     if (!coord) continue;
+    
+    // Skip rendering XOR merge gateways if hideXorMergeGateways is enabled
+    if (directions.hideXorMergeGateways && isXorMergeGateway(element, flows)) {
+      continue; // Don't render this gateway
+    }
     
     // Calculate label position
     const labelBounds = calculateElementLabelPosition(elementId, coordinates, flowWaypoints, flows, elements);
@@ -1248,31 +1371,36 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
   const shouldUseCorridor = gatewayLayer !== undefined && targetLayer !== undefined && 
                             gatewayLayer !== targetLayer && waypoints.length >= 3;
   
-  // Check if multiple outputs from this gateway go to the same layer
-  // If yes: use vertical alignment (rightmost waypoint)
+  // Check if multiple cross-lane outputs from this gateway go in the same direction
+  // If yes: use corridor positioning (at knick)
   // If no: use individual waypoint (near gateway)
-  let outputLayerCounts = new Map();
+  let crossLaneOutputsDown = 0;
+  let crossLaneOutputsUp = 0;
   
   if (flowInfos && flowWaypoints) {
+    const gatewayLane = flowInfo?.source?.lane;
+    
     for (const [otherFlowId, otherFlowInfo] of flowInfos) {
       const otherFlow = flows.get(otherFlowId);
       if (otherFlow && otherFlow.sourceRef === flow.sourceRef) {
-        const otherTargetLayer = otherFlowInfo.target?.layer;
-        if (otherTargetLayer !== undefined) {
-          outputLayerCounts.set(otherTargetLayer, (outputLayerCounts.get(otherTargetLayer) || 0) + 1);
+        const otherTargetLane = otherFlowInfo.target?.lane;
+        
+        // Check if this is a cross-lane flow
+        if (gatewayLane && otherTargetLane && gatewayLane !== otherTargetLane) {
+          // Determine direction based on exitSide
+          const otherExitSide = otherFlowInfo.source?.exitSide;
+          if (otherExitSide === 'down') {
+            crossLaneOutputsDown++;
+          } else if (otherExitSide === 'up') {
+            crossLaneOutputsUp++;
+          }
         }
       }
     }
   }
   
-  // Check if any layer has multiple outputs
-  let hasConvergingOutputs = false;
-  for (const count of outputLayerCounts.values()) {
-    if (count >= 2) {
-      hasConvergingOutputs = true;
-      break;
-    }
-  }
+  // Check if multiple cross-lane outputs in same direction
+  let hasConvergingOutputs = crossLaneOutputsDown >= 2 || crossLaneOutputsUp >= 2;
   
   // Determine label reference X
   let labelReferenceX;
@@ -1366,15 +1494,15 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
 }
 
 /**
- * Generate BPMN DI XML for flows
- * @param {Map} flows - Flow map from Phase 1
- * @param {Map} flowWaypoints - Flow waypoints (pixel coordinates)
+ * Generate BPMN DI for flows (edges)
+ * @param {Map} flows - Flow map
+ * @param {Map} flowWaypoints - Flow waypoints
  * @param {Map} elements - Element map
  * @param {Map} coordinates - Element coordinates
  * @param {Map} flowInfos - Flow infos from Phase 2 (contains exitSide)
  * @returns {string} - BPMN DI XML string
  */
-export function generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos) {
+export function generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos, directions) {
   let xml = '';
   
   for (const [flowId, flow] of flows) {
@@ -1530,8 +1658,8 @@ export function injectBPMNDI(bpmnXml, elements, flows, lanes, coordinates, flowW
     }
   }
   const laneDI = generateLaneDI(lanes, laneBounds, poolBounds, directions);
-  const elementDI = generateElementDI(elements, coordinates, flowWaypoints, flows);
-  const flowDI = generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos);
+  const elementDI = generateElementDI(elements, coordinates, flowWaypoints, flows, directions);
+  const flowDI = generateFlowDI(flows, flowWaypoints, elements, coordinates, flowInfos, directions);
   
   // Check if DI already exists
   if (cleanedXml.includes('<bpmndi:BPMNDiagram')) {

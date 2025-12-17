@@ -62,6 +62,7 @@ function getVIndex(lane, row, lanes) {
  */
 export function applyConfig(config = {}) {
   const laneOrientation = config.laneOrientation || 'horizontal';
+  const hideXorMergeGateways = config.hideXorMergeGateways !== undefined ? config.hideXorMergeGateways : true; // Default: hide XOR merge gateways
 
   if (laneOrientation === 'horizontal') {
     return {
@@ -69,7 +70,8 @@ export function applyConfig(config = {}) {
       alongLane: 'right',        // Process goes right
       oppAlongLane: 'left',      // Opposite direction
       crossLane: 'down',         // Lane change goes down
-      oppCrossLane: 'up'         // Opposite direction
+      oppCrossLane: 'up',        // Opposite direction
+      hideXorMergeGateways       // Hide XOR merge gateways
     };
   } else {
     return {
@@ -77,7 +79,8 @@ export function applyConfig(config = {}) {
       alongLane: 'down',         // Process goes down
       oppAlongLane: 'up',        // Opposite direction
       crossLane: 'right',        // Lane change goes right
-      oppCrossLane: 'left'       // Opposite direction
+      oppCrossLane: 'left',      // Opposite direction
+      hideXorMergeGateways       // Hide XOR merge gateways
     };
   }
 }
@@ -163,21 +166,31 @@ export function getCrossLaneDirection(flow, elementLanes, lanes, directions) {
 }
 
 /**
- * Assign position for same-lane flow
+ * Assign position for same-lane flow (horizontal progression)
  * @param {string} sourceId - Source element ID
  * @param {string} targetId - Target element ID
  * @param {Map} positions - Positions map
- * @param {Map} elementLanes - elementId → laneId
+ * @param {Map} elementLanes - Element-to-lane mapping
+ * @param {Map} elements - Elements map (to check outputs)
+ * @param {Map} flows - Flows map (to check other outputs)
  * @returns {Object} - { lane, layer, row }
  */
-export function assignSameLanePosition(sourceId, targetId, positions, elementLanes) {
+export function assignSameLanePosition(sourceId, targetId, positions, elementLanes, elements, flows) {
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
   
-  // If target already has a position, update layer to max of current and new
-  // This ensures elements with multiple inputs are positioned after ALL inputs
+  // Check if target already has a position
   const existingPos = positions.get(targetId);
-  const newLayer = sourcePos.layer + 1;
+  
+  // Determine layer offset based on whether target is in different row
+  let layerOffset = 1; // Default: horizontal progression (+1)
+  
+  if (existingPos && existingPos.row !== sourcePos.row) {
+    // Target already positioned in different row → vertical flow, no horizontal offset
+    layerOffset = 0;
+  }
+  
+  const newLayer = sourcePos.layer + layerOffset;
   
   if (existingPos) {
     // Update to maximum layer
@@ -353,7 +366,7 @@ export function isCrossLanePathFree(sourceId, targetId, positions, elementLanes,
  * @param {Map} elementLanes - elementId → laneId
  * @returns {Object} - { lane, layer, row }
  */
-export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes) {
+export function assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes, flows, elements) {
   const sourcePos = positions.get(sourceId);
   const lane = elementLanes.get(targetId);
   const sourceLane = elementLanes.get(sourceId);
@@ -361,10 +374,20 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
   const DEBUG = process.env.DEBUG_COLLISION === 'true';
   if (DEBUG) console.log(`\n[COLLISION CHECK] ${sourceId} (${sourceLane}, layer ${sourcePos.layer}) → ${targetId} (${lane})`);
   
-  // If target already has a position, keep it (first input wins for same-layer cross-lane)
+  // If target already has a position, use maximum layer (never move backwards)
   const existingPos = positions.get(targetId);
   if (existingPos) {
-    if (DEBUG) console.log(`  Target already positioned at layer ${existingPos.layer}`);
+    // Target already positioned - use maximum of existing and new layer
+    const proposedLayer = sourcePos.layer;
+    const finalLayer = Math.max(existingPos.layer, proposedLayer);
+    if (DEBUG) console.log(`  Target already positioned at layer ${existingPos.layer}, proposed ${proposedLayer}, using max ${finalLayer}`);
+    
+    // Update to maximum layer if needed
+    if (finalLayer > existingPos.layer) {
+      existingPos.layer = finalLayer;
+      if (DEBUG) console.log(`  → Updated to layer ${finalLayer}`);
+    }
+    
     return existingPos;
   }
 
@@ -375,8 +398,43 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
   const maxLaneIndex = Math.max(sourceLaneIndex, targetLaneIndex);
   const laneIds = Array.from(lanes.keys());
 
+  // Check if target has multiple inputs from the same direction
+  // If so, target needs layer + 1 (symmetric to multi-output rule)
+  let multiInputOffset = 0;
+  
+  if (flows && elements) {
+    const targetElement = elements.get(targetId);
+    if (targetElement && targetElement.incoming && targetElement.incoming.length > 1) {
+      // Count inputs from same direction (up or down)
+      let inputsFromAbove = 0;
+      let inputsFromBelow = 0;
+      
+      for (const inFlowId of targetElement.incoming) {
+        const inFlow = flows.get(inFlowId);
+        if (!inFlow) continue;
+        
+        const inSourceLane = elementLanes.get(inFlow.sourceRef);
+        if (!inSourceLane) continue;
+        
+        const inSourceLaneIndex = getLaneIndex(inSourceLane, lanes);
+        
+        if (inSourceLaneIndex < targetLaneIndex) {
+          inputsFromAbove++;
+        } else if (inSourceLaneIndex > targetLaneIndex) {
+          inputsFromBelow++;
+        }
+      }
+      
+      // If multiple inputs from same direction, need layer + 1
+      if (inputsFromAbove >= 2 || inputsFromBelow >= 2) {
+        multiInputOffset = 1;
+        if (DEBUG) console.log(`  → Multi-input detected (${inputsFromAbove} from above, ${inputsFromBelow} from below), adding layer offset`);
+      }
+    }
+  }
+  
   // Check if there are other elements in the same layer (collision detection)
-  let targetLayer = sourcePos.layer;
+  let targetLayer = sourcePos.layer + multiInputOffset;
   let hasCollision = false;
   
   // Check all elements in the same layer
@@ -788,6 +846,18 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   // Otherwise use normal rule (layer + 1)
   const shouldOptimize = !hasMultipleOutputsToSameLane && (hasSingleCrossLaneOutput || isSymmetricDistribution) && canUseOptimization;
   const layerOffset = (crossLaneOutputs.length > 0 && shouldOptimize) ? 0 : 1;
+  
+  const DEBUG_GW = process.env.DEBUG_GATEWAY === 'true';
+  if (DEBUG_GW && gatewayId === 'gateway3_split') {
+    console.log(`\n=== Gateway Optimization Debug: ${gatewayId} ===`);
+    console.log(`  crossLaneOutputs: ${crossLaneOutputs.length}`);
+    console.log(`  hasMultipleOutputsToSameLane: ${hasMultipleOutputsToSameLane}`);
+    console.log(`  hasSingleCrossLaneOutput: ${hasSingleCrossLaneOutput}`);
+    console.log(`  isSymmetricDistribution: ${isSymmetricDistribution} (up=${hasUpOutputs}, down=${hasDownOutputs})`);
+    console.log(`  canUseOptimization: ${canUseOptimization} (crossLaneFree=${crossLaneFree}, oppCrossLaneFree=${oppCrossLaneFree})`);
+    console.log(`  shouldOptimize: ${shouldOptimize}`);
+    console.log(`  layerOffset: ${layerOffset}`);
+  }
 
   // Helper function to find eventual lane change direction (recursive)
   // Follows the flow chain until a lane change is found or end is reached
@@ -879,6 +949,11 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   // Create positions with assigned rows
   for (const { targetId, targetLane, assignedRow } of crossLaneOutputs) {
     const newLayer = gatewayPos.layer + layerOffset;
+    
+    const DEBUG_CALC = process.env.DEBUG_GATEWAY === 'true';
+    if (DEBUG_CALC && gatewayId === 'gateway3_split') {
+      console.log(`\n  Setting ${targetId}: gatewayPos.layer=${gatewayPos.layer} + layerOffset=${layerOffset} = ${newLayer}`);
+    }
     const existingPos = positions.get(targetId);
     
     if (existingPos) {
@@ -1097,6 +1172,247 @@ function topologicalSortFlows(flows, elements, backEdgeSet = new Set()) {
 }
 
 /**
+ * Validate merge gateway lane assignment
+ * @param {string} mergeGatewayId - Merge gateway ID
+ * @param {Map} elements - Element map
+ * @param {Map} flows - Flow map
+ * @param {Map} elementLanes - Element lane assignments
+ * @returns {Object} - { valid: boolean, message?: string, suggestedLane?: string }
+ */
+function validateMergeGatewayLane(mergeGatewayId, elements, flows, elementLanes) {
+  const mergeGateway = elements.get(mergeGatewayId);
+  if (!mergeGateway || !mergeGateway.outgoing || mergeGateway.outgoing.length === 0) {
+    return { valid: true }; // No output = end gateway
+  }
+  
+  // Find first outgoing flow (merge gateway should have only one output)
+  const outgoingFlowId = mergeGateway.outgoing[0];
+  const outgoingFlow = flows.get(outgoingFlowId);
+  if (!outgoingFlow) {
+    return { valid: true };
+  }
+  
+  const nextElementId = outgoingFlow.targetRef;
+  const nextElementLane = elementLanes.get(nextElementId);
+  const mergeGatewayLane = elementLanes.get(mergeGatewayId);
+  
+  if (mergeGatewayLane !== nextElementLane) {
+    return {
+      valid: false,
+      message: `Merge gateway ${mergeGatewayId} should be in lane ${nextElementLane} (same as next element ${nextElementId})`,
+      suggestedLane: nextElementLane
+    };
+  }
+  
+  return { valid: true };
+}
+
+/**
+ * Optimize merge gateway position
+ * @param {string} mergeGatewayId - Merge gateway ID
+ * @param {Map} elements - Element map
+ * @param {Map} flows - Flow map
+ * @param {Map} positions - Element positions
+ * @param {Set} backEdgeSet - Set of back edge flow IDs
+ * @returns {boolean} - True if position was adjusted
+ */
+function optimizeMergeGatewayPosition(mergeGatewayId, elements, flows, positions, backEdgeSet) {
+  const mergeGateway = elements.get(mergeGatewayId);
+  if (!mergeGateway || !mergeGateway.incoming) {
+    return false;
+  }
+  
+  // Get layers of all input elements (excluding back-flows)
+  const inputLayers = [];
+  for (const flowId of mergeGateway.incoming) {
+    if (backEdgeSet.has(flowId)) continue;
+    
+    const flow = flows.get(flowId);
+    if (!flow) continue;
+    
+    const sourcePos = positions.get(flow.sourceRef);
+    if (sourcePos) {
+      inputLayers.push(sourcePos.layer);
+    }
+  }
+  
+  if (inputLayers.length === 0) {
+    return false;
+  }
+  
+  // Optimal layer = max input layer + 1
+  const maxInputLayer = Math.max(...inputLayers);
+  const optimalLayer = maxInputLayer + 1;
+  
+  const mergePos = positions.get(mergeGatewayId);
+  if (mergePos && mergePos.layer < optimalLayer) {
+    const DEBUG = process.env.DEBUG_MERGE === 'true';
+    if (DEBUG) {
+      console.log(`Optimizing merge gateway ${mergeGatewayId}: layer ${mergePos.layer} → ${optimalLayer}`);
+    }
+    mergePos.layer = optimalLayer;
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Validate merge gateway lanes early (before flow processing)
+ * @param {Map} elements - Element map
+ * @param {Map} flows - Flow map
+ * @param {Map} elementLanes - Element lane assignments
+ * @param {Map} lanes - Lane map
+ */
+function validateAndOptimizeMergeGatewaysEarly(elements, flows, elementLanes, lanes) {
+  // Find all PURE merge gateways (multiple inputs, exactly 1 output)
+  const mergeGateways = [];
+  
+  const DEBUG = process.env.DEBUG_MERGE === 'true';
+  
+  if (DEBUG) {
+    console.log(`\n=== validateAndOptimizeMergeGatewaysEarly called with ${elements.size} elements ===`);
+    console.log('Gateway3 elements:');
+    for (const [id, el] of elements) {
+      if (id.includes('gateway3')) {
+        console.log(`  ${id}: type=${el.type}, incoming=${el.incoming?.length || 0}, outgoing=${el.outgoing?.length || 0}`);
+      }
+    }
+  }
+  
+  for (const [elementId, element] of elements) {
+    const isGateway = element.type && (
+      element.type === 'exclusiveGateway' ||
+      element.type === 'parallelGateway' ||
+      element.type === 'inclusiveGateway'
+    );
+    
+    if (DEBUG && isGateway) {
+      console.log(`Gateway ${elementId}: incoming=${element.incoming?.length || 0}, outgoing=${element.outgoing?.length || 0}`);
+    }
+    
+    // Pure merge: multiple inputs AND exactly 1 output
+    if (isGateway && 
+        element.incoming && element.incoming.length > 1 &&
+        element.outgoing && element.outgoing.length === 1) {
+      mergeGateways.push(elementId);
+      if (DEBUG) console.log(`  → Found merge gateway: ${elementId}`);
+    }
+  }
+  
+  if (DEBUG) {
+    console.log(`\n=== MERGE GATEWAY VALIDATION (${mergeGateways.length} found) ===`);
+  }
+  
+  // Validate lane assignment for each merge gateway
+  for (const mergeGatewayId of mergeGateways) {
+    if (DEBUG) {
+      console.log(`\nValidating merge gateway: ${mergeGatewayId}`);
+    }
+    
+    // Validate lane
+    const laneValidation = validateMergeGatewayLane(mergeGatewayId, elements, flows, elementLanes);
+    if (!laneValidation.valid) {
+      console.warn(`[MERGE VALIDATION] ${laneValidation.message}`);
+      // Auto-correct lane assignment
+      elementLanes.set(mergeGatewayId, laneValidation.suggestedLane);
+      if (DEBUG) {
+        console.log(`  → Lane corrected to ${laneValidation.suggestedLane}`);
+      }
+    } else if (DEBUG) {
+      console.log(`  → Lane OK`);
+    }
+  }
+}
+
+/**
+ * Optimize merge gateway positions (after flow processing)
+ * @param {Map} elements - Element map
+ * @param {Map} flows - Flow map
+ * @param {Map} positions - Element positions
+ * @param {Map} elementLanes - Element lane assignments
+ * @param {Map} lanes - Lane map
+ * @param {Set} backEdgeSet - Set of back edge flow IDs
+ */
+function optimizeMergeGatewayPositions(elements, flows, positions, elementLanes, lanes, backEdgeSet) {
+  // Find all PURE merge gateways (multiple inputs, exactly 1 output)
+  // Split-Merge gateways (multiple inputs AND multiple outputs) are excluded
+  const mergeGateways = [];
+  
+  const DEBUG = process.env.DEBUG_MERGE === 'true';
+  
+  for (const [elementId, element] of elements) {
+    const isGateway = element.type && (
+      element.type === 'exclusiveGateway' ||
+      element.type === 'parallelGateway' ||
+      element.type === 'inclusiveGateway'
+    );
+    
+    if (DEBUG && isGateway) {
+      console.log(`Gateway ${elementId}: incoming=${element.incoming?.length || 0}, outgoing=${element.outgoing?.length || 0}`);
+    }
+    
+    // Pure merge: multiple inputs AND exactly 1 output
+    if (isGateway && 
+        element.incoming && element.incoming.length > 1 &&
+        element.outgoing && element.outgoing.length === 1) {
+      mergeGateways.push(elementId);
+      if (DEBUG) console.log(`  → Found merge gateway: ${elementId}`);
+    }
+  }
+  
+  if (DEBUG) {
+    console.log(`\n=== MERGE GATEWAY VALIDATION (${mergeGateways.length} found) ===`);
+  }
+  
+  // Validate and optimize each merge gateway
+  const adjustedGateways = new Set();
+  
+  for (const mergeGatewayId of mergeGateways) {
+    if (DEBUG) {
+      console.log(`\nValidating merge gateway: ${mergeGatewayId}`);
+    }
+    
+    // 1. Validate lane
+    const laneValidation = validateMergeGatewayLane(mergeGatewayId, elements, flows, elementLanes);
+    if (!laneValidation.valid) {
+      console.warn(`[MERGE VALIDATION] ${laneValidation.message}`);
+      // Auto-correct lane assignment
+      elementLanes.set(mergeGatewayId, laneValidation.suggestedLane);
+      const pos = positions.get(mergeGatewayId);
+      if (pos) {
+        pos.lane = laneValidation.suggestedLane;
+        if (DEBUG) {
+          console.log(`  → Lane corrected to ${laneValidation.suggestedLane}`);
+        }
+      }
+    } else if (DEBUG) {
+      console.log(`  → Lane OK`);
+    }
+    
+    // 2. Optimize position
+    const wasAdjusted = optimizeMergeGatewayPosition(mergeGatewayId, elements, flows, positions, backEdgeSet);
+    if (wasAdjusted) {
+      adjustedGateways.add(mergeGatewayId);
+      if (DEBUG) {
+        const pos = positions.get(mergeGatewayId);
+        console.log(`  → Position optimized to layer ${pos.layer}`);
+      }
+    } else if (DEBUG) {
+      console.log(`  → Position OK`);
+    }
+  }
+  
+  // 3. Propagate layer changes
+  if (adjustedGateways.size > 0) {
+    if (DEBUG) {
+      console.log(`\nPropagating layer changes for ${adjustedGateways.size} adjusted gateways...`);
+    }
+    propagateLayerChanges(positions, flows, adjustedGateways, backEdgeSet, elementLanes, elements);
+  }
+}
+
+/**
  * Adjust layers for elements with multiple cross-lane inputs
  * to prevent flow collisions
  * @param {Map} positions - Element positions
@@ -1205,7 +1521,7 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
   // If an element's layer was increased, all elements that depend on it
   // (i.e., have it as input) must also be shifted
   if (adjusted.size > 0) {
-    propagateLayerChanges(positions, flows, adjusted, backEdgeSet, elementLanes);
+    propagateLayerChanges(positions, flows, adjusted, backEdgeSet, elementLanes, elements);
   }
 }
 
@@ -1216,7 +1532,7 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
  * @param {Set} adjustedElements - Set of element IDs that had their layer increased
  * @param {Set} backEdgeSet - Set of back edge flow IDs
  */
-function propagateLayerChanges(positions, flows, adjustedElements, backEdgeSet, elementLanes) {
+function propagateLayerChanges(positions, flows, adjustedElements, backEdgeSet, elementLanes, elements) {
   // Build dependency graph: element -> elements that depend on it
   // Track which flows are cross-lane
   const dependents = new Map();
@@ -1391,6 +1707,10 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
   // Step 3.5: Message flows are handled separately (no pre-positioning)
   // Message catch events will be positioned by their outgoing sequence flows
   
+  // Step 3.7: Validate and optimize merge gateways (before flow processing)
+  // This ensures merge gateways are in correct lanes before position assignment
+  validateAndOptimizeMergeGatewaysEarly(elements, flows, elementLanes, lanes);
+  
   // Step 4: Process all flows in topological order
   const sortedFlows = topologicalSortFlows(flows, elements, backEdgeSet);
   
@@ -1505,7 +1825,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
         
         if (pathFree) {
           // Free path - direct vertical connection
-          assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes);
+          assignCrossLaneFreePosition(sourceId, targetId, positions, elementLanes, lanes, flows, elements);
           const flowInfo = createCrossLaneFreeFlowInfo(
             flowId,
             sourceId,
@@ -1572,9 +1892,15 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
       } else {
         // Same-lane flow
         const before = positions.get(targetId)?.layer;
-        assignSameLanePosition(sourceId, targetId, positions, elementLanes);
+        assignSameLanePosition(sourceId, targetId, positions, elementLanes, elements, flows);
         const after = positions.get(targetId)?.layer;
         if (DEBUG) console.log(`  ${flowId}: ${sourceId} -> ${targetId} (same-lane, layer ${before || 'new'} -> ${after})`);
+        
+        // DEBUG: Special check for gateway3_split
+        if (targetId === 'gateway3_split') {
+          console.log(`  [DEBUG] gateway3_split set to layer ${after} by flow ${flowId}`);
+          console.log(`  [DEBUG] Source ${sourceId} is on layer ${positions.get(sourceId)?.layer}`);
+        }
         const flowInfo = createSameLaneFlowInfo(
           flowId,
           sourceId,
@@ -1625,6 +1951,26 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
   
   // Step 6: Adjust layers for elements with multiple cross-lane inputs
   adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, elements);
+  
+  // DEBUG: Check gateway3_split position before merge optimization
+  const DEBUG_GW_POS = process.env.DEBUG_GATEWAY === 'true';
+  if (DEBUG_GW_POS) {
+    console.log('\n=== BEFORE Merge Gateway Optimization ===');
+    console.log('gateway3_split:', positions.get('gateway3_split'));
+    console.log('task12:', positions.get('task12'));
+    console.log('task14:', positions.get('task14'));
+  }
+  
+  // Step 6.3: Optimize merge gateway positions (after flow processing)
+  optimizeMergeGatewayPositions(elements, flows, positions, elementLanes, lanes, backEdgeSet);
+  
+  // DEBUG: Check gateway3_split position after merge optimization
+  if (DEBUG_GW_POS) {
+    console.log('\n=== AFTER Merge Gateway Optimization ===');
+    console.log('gateway3_split:', positions.get('gateway3_split'));
+    console.log('task12:', positions.get('task12'));
+    console.log('task14:', positions.get('task14'));
+  }
   
   // Step 6.5: Assign rows to prevent collisions
   assignRows(positions, flows);
