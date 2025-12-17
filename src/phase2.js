@@ -114,39 +114,8 @@ export function assignGatewayLanes(elements, flows, lanes) {
     }
   }
 
-  // Now assign lanes to gateways
-  for (const [elementId, element] of elements) {
-    // Skip if already assigned
-    if (elementLanes.has(elementId)) {
-      continue;
-    }
-
-    const isGateway = element.type.includes('Gateway');
-    if (!isGateway) {
-      continue;
-    }
-
-    // Split gateway (1 input, multiple outputs)
-    if (element.incoming.length === 1 && element.outgoing.length > 1) {
-      const incomingFlow = flows.get(element.incoming[0]);
-      if (incomingFlow) {
-        const sourceLane = elementLanes.get(incomingFlow.sourceRef);
-        if (sourceLane) {
-          elementLanes.set(elementId, sourceLane);
-        }
-      }
-    }
-    // Merge gateway (multiple inputs, 1 output)
-    else if (element.incoming.length > 1 && element.outgoing.length === 1) {
-      const outgoingFlow = flows.get(element.outgoing[0]);
-      if (outgoingFlow) {
-        const targetLane = elementLanes.get(outgoingFlow.targetRef);
-        if (targetLane) {
-          elementLanes.set(elementId, targetLane);
-        }
-      }
-    }
-  }
+  // Gateways must be manually assigned to lanes in BPMN
+  // No automatic lane optimization - lane assignment is a modeling decision
 
   // Fallback: Assign first lane to any elements without a lane
   const firstLane = Array.from(lanes.keys())[0];

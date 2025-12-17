@@ -542,6 +542,18 @@ export function routeBackFlow(flowInfo, coordinates, positions, lanes, direction
 export function calculateLaneBounds(lanes, positions, directions, pools = new Map()) {
   const isHorizontal = directions.alongLane === 'right';
   
+  // Find maximum nesting level across all lanes
+  function getLaneNestingLevel(laneId, lanes) {
+    const lane = lanes.get(laneId);
+    if (!lane || !lane.parentLane) return 0;
+    return 1 + getLaneNestingLevel(lane.parentLane, lanes);
+  }
+  
+  let maxNestingLevel = 0;
+  for (const [laneId] of lanes) {
+    maxNestingLevel = Math.max(maxNestingLevel, getLaneNestingLevel(laneId, lanes));
+  }
+  
   // Normalize rows first
   const normalized = normalizeRows(positions, lanes);
   
@@ -626,16 +638,15 @@ export function calculateLaneBounds(lanes, positions, directions, pools = new Ma
       if (isHorizontal) {
         const laneHeight = LANE_BASE_HEIGHT + (maxRows - 1) * LANE_ROW_HEIGHT;
         
-        // Calculate X position based on hierarchy
+        // Calculate X position - all lanes start at same X regardless of nesting
         const POOL_LABEL_WIDTH = 30;
         const PARENT_LANE_LABEL_WIDTH = 30;
         const CHILD_LANE_INDENT = 30;
         const ELEMENT_LEFT_MARGIN = 50;
         const ELEMENT_RIGHT_MARGIN = 50;
-        const isChildLane = lane.parentLane;
-        // Child lanes start at parent X + parent label width
-        const laneX = POOL_X_OFFSET + POOL_LABEL_WIDTH + 
-                      (isChildLane ? PARENT_LANE_LABEL_WIDTH : 0);
+        // All lanes start their elements at the same X position
+        // This ensures column alignment across lanes with different nesting levels
+        const laneX = POOL_X_OFFSET + POOL_LABEL_WIDTH + (maxNestingLevel * PARENT_LANE_LABEL_WIDTH);
         
         // Width = number of columns * column width (no extra margins)
         const laneWidth = (maxLayer + 1) * COLUMN_WIDTH;
@@ -756,6 +767,7 @@ function calculatePoolBounds(pools, laneBounds, coordinates, lanes) {
 }
 
 import { checkFlowCollisions } from './flow-collision-detector.js';
+import { checkColumnAlignment } from './column-alignment-checker.js';
 
 export function phase3(phase2Result, elements, lanes, directions, pools = new Map(), flows = new Map()) {
   const { positions, flowInfos } = phase2Result;
@@ -803,6 +815,9 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   if (flows.size > 0) {
     checkFlowCollisions(flows, flowWaypoints, coordinates, flowInfos);
   }
+  
+  // Check for column alignment issues
+  checkColumnAlignment(positions, coordinates, elements);
   
   return {
     coordinates,

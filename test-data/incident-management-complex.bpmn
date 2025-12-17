@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_1"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="pool1" name="Company Green - Incident Management" processRef="Process_1"/>
+  </bpmn:collaboration>
+  
+  <bpmn:process id="Process_1" isExecutable="false">
+    
+    <!-- Service Desk Lane -->
+    <bpmn:laneSet>
+      <bpmn:lane id="lane1" name="Service Desk">
+        <bpmn:childLaneSet>
+          <bpmn:lane id="lane1a" name="Level 1 Support">
+            <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task2</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>gateway1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task3</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+          </bpmn:lane>
+          <bpmn:lane id="lane1b" name="Level 2 Support">
+            <bpmn:flowNodeRef>task4</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task5</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>gateway2</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+      
+      <!-- IT Operations Lane -->
+      <bpmn:lane id="lane2" name="IT Operations">
+        <bpmn:childLaneSet>
+          <bpmn:lane id="lane2a" name="System Admin">
+            <bpmn:flowNodeRef>task6</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task7</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>gateway3</bpmn:flowNodeRef>
+          </bpmn:lane>
+          <bpmn:lane id="lane2b" name="Network Admin">
+            <bpmn:flowNodeRef>task8</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task9</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+      
+      <!-- Development Team Lane -->
+      <bpmn:lane id="lane3" name="Development Team">
+        <bpmn:childLaneSet>
+          <bpmn:lane id="lane3a" name="Backend Developer">
+            <bpmn:flowNodeRef>task10</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task11</bpmn:flowNodeRef>
+          </bpmn:lane>
+          <bpmn:lane id="lane3b" name="DevOps Engineer">
+            <bpmn:flowNodeRef>task12</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>task13</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+      
+      <!-- Management Lane -->
+      <bpmn:lane id="lane4" name="Management">
+        <bpmn:flowNodeRef>task14</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task15</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end2</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="start1" name="Incident Reported"/>
+    
+    <!-- Service Desk - Level 1 -->
+    <bpmn:task id="task1" name="Log Incident Details"/>
+    <bpmn:task id="task2" name="Initial Assessment"/>
+    <bpmn:exclusiveGateway id="gateway1" name="Can Resolve?"/>
+    <bpmn:task id="task3" name="Resolve and Close Ticket"/>
+    <bpmn:endEvent id="end1" name="Incident Resolved (L1)"/>
+    
+    <!-- Service Desk - Level 2 -->
+    <bpmn:task id="task4" name="Advanced Diagnosis"/>
+    <bpmn:task id="task5" name="Check System Logs"/>
+    <bpmn:exclusiveGateway id="gateway2" name="Issue Type?"/>
+    
+    <!-- IT Operations - System Admin -->
+    <bpmn:task id="task6" name="Analyze Server Performance"/>
+    <bpmn:task id="task7" name="Apply System Patch"/>
+    <bpmn:exclusiveGateway id="gateway3" name="Fixed?"/>
+    
+    <!-- IT Operations - Network Admin -->
+    <bpmn:task id="task8" name="Check Network Configuration"/>
+    <bpmn:task id="task9" name="Restart Network Services"/>
+    
+    <!-- Development - Backend -->
+    <bpmn:task id="task10" name="Review Application Code"/>
+    <bpmn:task id="task11" name="Deploy Hotfix"/>
+    
+    <!-- Development - DevOps -->
+    <bpmn:task id="task12" name="Check Infrastructure"/>
+    <bpmn:task id="task13" name="Scale Resources"/>
+    
+    <!-- Management -->
+    <bpmn:task id="task14" name="Review by Management"/>
+    <bpmn:task id="task15" name="Coordinate External Support"/>
+    <bpmn:exclusiveGateway id="gateway4" name="Resolved?"/>
+    <bpmn:endEvent id="end2" name="Incident Closed"/>
+    
+    <!-- Sequence Flows -->
+    
+    <!-- Level 1 Support Flow -->
+    <bpmn:sequenceFlow id="flow1" sourceRef="start1" targetRef="task1"/>
+    <bpmn:sequenceFlow id="flow2" sourceRef="task1" targetRef="task2"/>
+    <bpmn:sequenceFlow id="flow3" sourceRef="task2" targetRef="gateway1"/>
+    <bpmn:sequenceFlow id="flow4" name="Yes" sourceRef="gateway1" targetRef="task3"/>
+    <bpmn:sequenceFlow id="flow5" sourceRef="task3" targetRef="end1"/>
+    
+    <!-- Escalate to Level 2 -->
+    <bpmn:sequenceFlow id="flow6" name="No" sourceRef="gateway1" targetRef="task4"/>
+    <bpmn:sequenceFlow id="flow7" sourceRef="task4" targetRef="task5"/>
+    <bpmn:sequenceFlow id="flow8" sourceRef="task5" targetRef="gateway2"/>
+    
+    <!-- Route to IT Operations -->
+    <bpmn:sequenceFlow id="flow9" name="System Issue" sourceRef="gateway2" targetRef="task6"/>
+    <bpmn:sequenceFlow id="flow10" sourceRef="task6" targetRef="task7"/>
+    <bpmn:sequenceFlow id="flow11" sourceRef="task7" targetRef="gateway3"/>
+    
+    <!-- Network Issue Path -->
+    <bpmn:sequenceFlow id="flow13" name="Network Issue" sourceRef="gateway2" targetRef="task8"/>
+    <bpmn:sequenceFlow id="flow14" sourceRef="task8" targetRef="task9"/>
+    <bpmn:sequenceFlow id="flow15" sourceRef="task9" targetRef="gateway3"/>
+    
+    <!-- Application Issue Path -->
+    <bpmn:sequenceFlow id="flow16" name="App Issue" sourceRef="gateway2" targetRef="task10"/>
+    <bpmn:sequenceFlow id="flow17" sourceRef="task10" targetRef="task11"/>
+    <bpmn:sequenceFlow id="flow18" sourceRef="task11" targetRef="gateway3"/>
+    
+    <!-- Gateway Fixed Decision -->
+    <bpmn:sequenceFlow id="flow12" name="Yes" sourceRef="gateway3" targetRef="task14"/>
+    
+    <!-- Infrastructure Issue Path -->
+    <bpmn:sequenceFlow id="flow19" name="No" sourceRef="gateway3" targetRef="task12"/>
+    <bpmn:sequenceFlow id="flow20" sourceRef="task12" targetRef="task13"/>
+    <bpmn:sequenceFlow id="flow21" sourceRef="task13" targetRef="task14"/>
+    
+    <!-- Management Flow -->
+    <bpmn:sequenceFlow id="flow22" sourceRef="task14" targetRef="gateway4"/>
+    <bpmn:sequenceFlow id="flow23" name="Yes" sourceRef="gateway4" targetRef="end2"/>
+    <bpmn:sequenceFlow id="flow24" name="No" sourceRef="gateway4" targetRef="task15"/>
+    <bpmn:sequenceFlow id="flow25" sourceRef="task15" targetRef="end2"/>
+    
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Company Green - Incident Management</title>
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #canvas { height: 100vh; }
+    .info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <div class="info">
+    <strong>Company Green - Incident Management Process</strong><br>
+    4 Main Lanes | 6 Sub-Lanes | 15 Tasks | 4 Gateways
+  </div>
+  <div id="canvas"></div>
+  <script>
+    const viewer = new BpmnJS({ container: '#canvas' });
+    fetch('incident-management-output.bpmn')
+      .then(r => r.text())
+      .then(xml => viewer.importXML(xml))
+      .then(() => viewer.get('canvas').zoom('fit-viewport'))
+      .catch(err => console.error('Error:', err));
+  </script>
+</body>
+</html>
