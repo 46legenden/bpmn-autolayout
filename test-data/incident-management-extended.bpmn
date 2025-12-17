@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_Extended"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:collaboration id="Collaboration_Extended">
+    <bpmn:participant id="pool1" name="Company Green - Extended Incident Management" processRef="Process_Extended"/>
+  </bpmn:collaboration>
+  
+  <bpmn:process id="Process_Extended" isExecutable="false">
+    
+    <bpmn:laneSet>
+      <!-- Service Desk Lane -->
+      <bpmn:lane id="lane1" name="Service Desk">
+        <bpmn:childLaneSet>
+          <bpmn:lane id="lane1a" name="Level 1 Support">
+            <bpmn:flowNodeRef>start1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>receiveTask1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>manualTask1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>serviceTask1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>gateway1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>userTask1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>end1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>sendTask1</bpmn:flowNodeRef>
+          </bpmn:lane>
+          <bpmn:lane id="lane1b" name="Level 2 Support">
+            <bpmn:flowNodeRef>userTask2</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>timerEvent1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>businessRuleTask1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>parallelGateway1_split</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>sendTask2</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>serviceTask2</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>parallelGateway1_merge</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>gateway2</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+      
+      <!-- IT Operations Lane -->
+      <bpmn:lane id="lane2" name="IT Operations">
+        <bpmn:childLaneSet>
+          <bpmn:lane id="lane2a" name="System Admin">
+            <bpmn:flowNodeRef>manualTask2</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>serviceTask3</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>subprocess1</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>serviceTask4</bpmn:flowNodeRef>
+          </bpmn:lane>
+          <bpmn:lane id="lane2b" name="Network Admin">
+            <bpmn:flowNodeRef>manualTask3</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>serviceTask5</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>userTask3</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+      
+      <!-- Development Team Lane -->
+      <bpmn:lane id="lane3" name="Development Team">
+        <bpmn:childLaneSet>
+          <bpmn:lane id="lane3a" name="Backend Developer">
+            <bpmn:flowNodeRef>userTask4</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>serviceTask6</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>manualTask4</bpmn:flowNodeRef>
+          </bpmn:lane>
+          <bpmn:lane id="lane3b" name="DevOps Engineer">
+            <bpmn:flowNodeRef>manualTask5</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>serviceTask7</bpmn:flowNodeRef>
+            <bpmn:flowNodeRef>callActivity1</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+      
+      <!-- Management Lane -->
+      <bpmn:lane id="lane4" name="Management">
+        <bpmn:flowNodeRef>callActivity2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>receiveTask2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>userTask5</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway3_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway3_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>serviceTask8</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end2</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="start1" name="Incident Reported"/>
+    
+    <!-- Service Desk - Level 1 -->
+    <bpmn:receiveTask id="receiveTask1" name="Receive Incident Report"/>
+    <bpmn:manualTask id="manualTask1" name="Manual Triage"/>
+    <bpmn:serviceTask id="serviceTask1" name="Auto-Assign Ticket"/>
+    <bpmn:exclusiveGateway id="gateway1" name="Priority?"/>
+    <bpmn:userTask id="userTask1" name="Quick Resolution"/>
+    <bpmn:endEvent id="end1" name="Resolved (L1)"/>
+    <bpmn:sendTask id="sendTask1" name="Send Escalation"/>
+    
+    <!-- Service Desk - Level 2 -->
+    <bpmn:userTask id="userTask2" name="Detailed Analysis"/>
+    <bpmn:intermediateCatchEvent id="timerEvent1" name="SLA Check">
+      <bpmn:timerEventDefinition/>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:businessRuleTask id="businessRuleTask1" name="Determine Resolution Path"/>
+    <bpmn:parallelGateway id="parallelGateway1_split"/>
+    <bpmn:sendTask id="sendTask2" name="Notify Stakeholders"/>
+    <bpmn:serviceTask id="serviceTask2" name="Log Investigation"/>
+    <bpmn:parallelGateway id="parallelGateway1_merge"/>
+    <bpmn:exclusiveGateway id="gateway2" name="Issue Type?"/>
+    
+    <!-- IT Operations - System Admin -->
+    <bpmn:manualTask id="manualTask2" name="Apply System Fix"/>
+    <bpmn:serviceTask id="serviceTask3" name="Verify System Status"/>
+    <bpmn:subProcess id="subprocess1" name="Rollback Procedure"/>
+    <bpmn:serviceTask id="serviceTask4" name="Update CMDB"/>
+    
+    <!-- IT Operations - Network Admin -->
+    <bpmn:manualTask id="manualTask3" name="Network Configuration"/>
+    <bpmn:serviceTask id="serviceTask5" name="Test Connectivity"/>
+    <bpmn:userTask id="userTask3" name="Verify Network Fix"/>
+    
+    <!-- Development Team - Backend -->
+    <bpmn:userTask id="userTask4" name="Code Review"/>
+    <bpmn:serviceTask id="serviceTask6" name="Run Tests"/>
+    <bpmn:manualTask id="manualTask4" name="Deploy Hotfix"/>
+    
+    <!-- Development Team - DevOps -->
+    <bpmn:manualTask id="manualTask5" name="Infrastructure Check"/>
+    <bpmn:serviceTask id="serviceTask7" name="Scale Resources"/>
+    <bpmn:callActivity id="callActivity1" name="Call Monitoring Process"/>
+    
+    <!-- Management -->
+    <bpmn:callActivity id="callActivity2" name="Vendor Escalation"/>
+    <bpmn:receiveTask id="receiveTask2" name="Wait for Vendor Response"/>
+    <bpmn:userTask id="userTask5" name="Management Approval"/>
+    <bpmn:exclusiveGateway id="gateway3_merge"/>
+    <bpmn:exclusiveGateway id="gateway3_split" name="Resolved?"/>
+    <bpmn:serviceTask id="serviceTask8" name="Close Incident"/>
+    <bpmn:endEvent id="end2" name="Incident Closed"/>
+    
+    <!-- Sequence Flows -->
+    <!-- Level 1 Flow -->
+    <bpmn:sequenceFlow id="flow1" sourceRef="start1" targetRef="receiveTask1"/>
+    <bpmn:sequenceFlow id="flow2" sourceRef="receiveTask1" targetRef="manualTask1"/>
+    <bpmn:sequenceFlow id="flow3" sourceRef="manualTask1" targetRef="serviceTask1"/>
+    <bpmn:sequenceFlow id="flow4" sourceRef="serviceTask1" targetRef="gateway1"/>
+    <bpmn:sequenceFlow id="flow5" name="Low Priority" sourceRef="gateway1" targetRef="userTask1"/>
+    <bpmn:sequenceFlow id="flow6" sourceRef="userTask1" targetRef="end1"/>
+    <bpmn:sequenceFlow id="flow7" name="High Priority" sourceRef="gateway1" targetRef="sendTask1"/>
+    <bpmn:sequenceFlow id="flow8" sourceRef="sendTask1" targetRef="userTask2"/>
+    
+    <!-- Level 2 Flow -->
+    <bpmn:sequenceFlow id="flow9" sourceRef="userTask2" targetRef="timerEvent1"/>
+    <bpmn:sequenceFlow id="flow10" sourceRef="timerEvent1" targetRef="businessRuleTask1"/>
+    <bpmn:sequenceFlow id="flow11" sourceRef="businessRuleTask1" targetRef="parallelGateway1_split"/>
+    <bpmn:sequenceFlow id="flow12" sourceRef="parallelGateway1_split" targetRef="sendTask2"/>
+    <bpmn:sequenceFlow id="flow13" sourceRef="parallelGateway1_split" targetRef="serviceTask2"/>
+    <bpmn:sequenceFlow id="flow14" sourceRef="sendTask2" targetRef="parallelGateway1_merge"/>
+    <bpmn:sequenceFlow id="flow15" sourceRef="serviceTask2" targetRef="parallelGateway1_merge"/>
+    <bpmn:sequenceFlow id="flow16" sourceRef="parallelGateway1_merge" targetRef="gateway2"/>
+    
+    <!-- IT Operations - System Admin Path -->
+    <bpmn:sequenceFlow id="flow17" name="System Issue" sourceRef="gateway2" targetRef="manualTask2"/>
+    <bpmn:sequenceFlow id="flow18" sourceRef="manualTask2" targetRef="serviceTask3"/>
+    <bpmn:sequenceFlow id="flow19" sourceRef="serviceTask3" targetRef="subprocess1"/>
+    <bpmn:sequenceFlow id="flow20" sourceRef="subprocess1" targetRef="serviceTask4"/>
+    <bpmn:sequenceFlow id="flow21" sourceRef="serviceTask4" targetRef="gateway3_merge"/>
+    
+    <!-- IT Operations - Network Admin Path -->
+    <bpmn:sequenceFlow id="flow22" name="Network Issue" sourceRef="gateway2" targetRef="manualTask3"/>
+    <bpmn:sequenceFlow id="flow23" sourceRef="manualTask3" targetRef="serviceTask5"/>
+    <bpmn:sequenceFlow id="flow24" sourceRef="serviceTask5" targetRef="userTask3"/>
+    <bpmn:sequenceFlow id="flow25" sourceRef="userTask3" targetRef="gateway3_merge"/>
+    
+    <!-- Development Team - Backend Path -->
+    <bpmn:sequenceFlow id="flow26" name="App Issue" sourceRef="gateway2" targetRef="userTask4"/>
+    <bpmn:sequenceFlow id="flow27" sourceRef="userTask4" targetRef="serviceTask6"/>
+    <bpmn:sequenceFlow id="flow28" sourceRef="serviceTask6" targetRef="manualTask4"/>
+    <bpmn:sequenceFlow id="flow29" sourceRef="manualTask4" targetRef="gateway3_merge"/>
+    
+    <!-- Development Team - DevOps Path -->
+    <bpmn:sequenceFlow id="flow30" name="Infrastructure Issue" sourceRef="gateway2" targetRef="manualTask5"/>
+    <bpmn:sequenceFlow id="flow31" sourceRef="manualTask5" targetRef="serviceTask7"/>
+    <bpmn:sequenceFlow id="flow32" sourceRef="serviceTask7" targetRef="callActivity1"/>
+    <bpmn:sequenceFlow id="flow33" sourceRef="callActivity1" targetRef="gateway3_merge"/>
+    
+    <!-- Management Path -->
+    <bpmn:sequenceFlow id="flow34" name="Vendor Issue" sourceRef="gateway2" targetRef="callActivity2"/>
+    <bpmn:sequenceFlow id="flow35" sourceRef="callActivity2" targetRef="receiveTask2"/>
+    <bpmn:sequenceFlow id="flow36" sourceRef="receiveTask2" targetRef="userTask5"/>
+    <bpmn:sequenceFlow id="flow37" sourceRef="userTask5" targetRef="gateway3_merge"/>
+    
+    <!-- Final Flow -->
+    <bpmn:sequenceFlow id="flow38" sourceRef="gateway3_merge" targetRef="gateway3_split"/>
+    <bpmn:sequenceFlow id="flow39" name="Yes" sourceRef="gateway3_split" targetRef="serviceTask8"/>
+    <bpmn:sequenceFlow id="flow40" sourceRef="serviceTask8" targetRef="end2"/>
+    <bpmn:sequenceFlow id="flow41" name="No" sourceRef="gateway3_split" targetRef="userTask2"/>
+    
+  </bpmn:process>
+  
+</bpmn:definitions>

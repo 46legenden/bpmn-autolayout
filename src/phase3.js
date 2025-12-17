@@ -1341,13 +1341,15 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
   }
   
   // Gateway OUTPUT → unified positioning rules
-  const LABEL_HEIGHT = 20;
   const LABEL_OFFSET = 0;  // No offset - labels directly at waypoint
   
   // Calculate dynamic label width based on text length
   // Approximate: 7 pixels per character + 10px padding
   const textLength = flow.name ? flow.name.length : 10;
   const LABEL_WIDTH = Math.max(50, textLength * 7 + 10);  // Minimum 50px
+  
+  // Set label height based on estimated width (wider labels might wrap to 2 lines)
+  const LABEL_HEIGHT = LABEL_WIDTH > 120 ? 40 : 20;
   
   // Get first waypoint (arrow exit point)
   const wp1 = waypoints[0];
@@ -1443,6 +1445,7 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
   let labelX, labelY;
   
   if (exitSide === 'right') {
+    // Horizontal flow: always position label above to prevent collision with multi-line text
     if (shouldUseCorridor && hasConvergingOutputs) {
       // Multiple outputs converging: label at corridor (knick)
       const secondLastWp = waypoints[waypoints.length - 2];
@@ -1450,23 +1453,32 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
       labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
     } else {
       // Single output or no convergence: label near gateway
-      labelX = labelReferenceX + LABEL_OFFSET;
+      labelX = labelReferenceX - 10;  // Closer to center
       labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
     }
     
   } else if (exitSide === 'down') {
     if (shouldUseCorridor && hasConvergingOutputs) {
-      // Multiple outputs converging: label at corridor (knick)
+      // Multiple outputs converging: label at corridor (knick), below to prevent collision
       const secondLastWp = waypoints[waypoints.length - 2];
-      labelX = labelReferenceX + LABEL_OFFSET;
-      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
+      labelX = wp1.x - 20;  // Shift left to align text properly
+      labelY = secondLastWp.y + 10;   // More spacing below flow
+      // Use fixed width for consistent rendering by bpmn.io
+      const FIXED_CORRIDOR_WIDTH = 150;
+      return {
+        x: labelX,
+        y: labelY,
+        width: FIXED_CORRIDOR_WIDTH,
+        height: LABEL_HEIGHT
+      };
     } else {
       // Single output or no convergence: label near gateway
-      labelX = labelReferenceX + LABEL_OFFSET;
-      labelY = wp1.y + LABEL_OFFSET;
+      labelX = wp1.x - 10;  // Closer to center
+      labelY = wp1.y + 10;  // Further down
     }
     
   } else if (exitSide === 'left') {
+    // Horizontal flow: always position label above to prevent collision with multi-line text
     if (shouldUseCorridor && hasConvergingOutputs) {
       // Multiple outputs converging: label at corridor (knick)
       const secondLastWp = waypoints[waypoints.length - 2];
@@ -1479,16 +1491,9 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
     }
     
   } else if (exitSide === 'up') {
-    if (shouldUseCorridor && hasConvergingOutputs) {
-      // Multiple outputs converging: label at corridor (knick)
-      const secondLastWp = waypoints[waypoints.length - 2];
-      labelX = labelReferenceX + LABEL_OFFSET;
-      labelY = secondLastWp.y - LABEL_HEIGHT - LABEL_OFFSET;
-    } else {
-      // Single output or no convergence: label near gateway
-      labelX = labelReferenceX + LABEL_OFFSET;
-      labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
-    }
+    // Vertical flow up: position label above (on target side)
+    labelX = labelReferenceX + LABEL_OFFSET;
+    labelY = wp1.y - LABEL_HEIGHT - LABEL_OFFSET;
     
   } else {
     // Fallback
