@@ -106,8 +106,8 @@ export function calculateElementCoordinates(elements, positions, laneBounds, dir
       // Horizontal orientation: lanes stack vertically, process flows horizontally
       // X: Based on layer (column), centered in column
       // Calculate base X offset based on lane hierarchy
-      // Use lane's X position from laneBounds
-      const laneX = laneBound.x || POOL_X_OFFSET;
+      // Use elementStartX for aligned columns, fallback to x for backward compatibility
+      const laneX = laneBound.elementStartX || laneBound.x || POOL_X_OFFSET;
       
       // Columns fill the entire lane width (no extra margins)
       // Column center = lane start + (layer * COLUMN_WIDTH) + COLUMN_WIDTH/2
@@ -162,7 +162,7 @@ export function calculateWaypointCoordinate(waypoint, lanes, directions, laneBou
     // Use lane's X position from laneBounds (same as elements)
     const laneBound = laneBounds.get(waypoint.lane);
     // Use EXACT same logic as elements (line 110)
-    const laneX = laneBound?.x || POOL_X_OFFSET;
+    const laneX = laneBound?.elementStartX || laneBound?.x || POOL_X_OFFSET;
     
     // Column center = lane start + (layer * COLUMN_WIDTH) + COLUMN_WIDTH/2
     const columnCenterX = laneX + waypoint.layer * COLUMN_WIDTH + COLUMN_WIDTH / 2;
@@ -554,6 +554,12 @@ export function calculateLaneBounds(lanes, positions, directions, pools = new Ma
     maxNestingLevel = Math.max(maxNestingLevel, getLaneNestingLevel(laneId, lanes));
   }
   
+  // Calculate fixed right edge for all lanes in the pool
+  // This ensures all lanes end at the same X position
+  const POOL_LABEL_WIDTH = 30;
+  const PARENT_LANE_LABEL_WIDTH = 30;
+  const CHILD_LANE_INDENT = 30;
+  
   // Normalize rows first
   const normalized = normalizeRows(positions, lanes);
   
@@ -567,6 +573,12 @@ export function calculateLaneBounds(lanes, positions, directions, pools = new Ma
     laneMaxRows.set(pos.lane, Math.max(currentMax, pos.normalizedRow + 1));
     maxLayer = Math.max(maxLayer, pos.layer);
   }
+  
+  // Calculate fixed right edge for all lanes in the pool
+  // Right edge = element start X + all columns
+  const poolRightEdge = POOL_X_OFFSET + POOL_LABEL_WIDTH + 
+                        (maxNestingLevel * PARENT_LANE_LABEL_WIDTH) + 
+                        (maxLayer + 1) * COLUMN_WIDTH;
   
   const laneBounds = new Map();
   
@@ -590,15 +602,10 @@ export function calculateLaneBounds(lanes, positions, directions, pools = new Ma
         
         // Parent lane bounds encompass all children
         // Calculate X position for parent lane
-        const POOL_LABEL_WIDTH = 30;
-        const PARENT_LANE_LABEL_WIDTH = 30;
-        const CHILD_LANE_INDENT = 30;
-        const ELEMENT_LEFT_MARGIN = 50;
-        const ELEMENT_RIGHT_MARGIN = 50;
         const parentX = POOL_X_OFFSET + POOL_LABEL_WIDTH; // Parent starts right after pool label
         
-        // Parent width includes child indent + column space
-        const parentWidth = CHILD_LANE_INDENT + (maxLayer + 1) * COLUMN_WIDTH;
+        // Parent width: from parentX to poolRightEdge
+        const parentWidth = poolRightEdge - parentX;
         
         laneBounds.set(laneId, {
           x: parentX,
@@ -638,21 +645,25 @@ export function calculateLaneBounds(lanes, positions, directions, pools = new Ma
       if (isHorizontal) {
         const laneHeight = LANE_BASE_HEIGHT + (maxRows - 1) * LANE_ROW_HEIGHT;
         
-        // Calculate X position - all lanes start at same X regardless of nesting
-        const POOL_LABEL_WIDTH = 30;
-        const PARENT_LANE_LABEL_WIDTH = 30;
-        const CHILD_LANE_INDENT = 30;
-        const ELEMENT_LEFT_MARGIN = 50;
-        const ELEMENT_RIGHT_MARGIN = 50;
-        // All lanes start their elements at the same X position
-        // This ensures column alignment across lanes with different nesting levels
-        const laneX = POOL_X_OFFSET + POOL_LABEL_WIDTH + (maxNestingLevel * PARENT_LANE_LABEL_WIDTH);
+        // Determine lane's actual nesting level
+        const laneNestingLevel = getLaneNestingLevel(laneId, lanes);
         
-        // Width = number of columns * column width (no extra margins)
-        const laneWidth = (maxLayer + 1) * COLUMN_WIDTH;
+        // Lane X position:
+        // - Top-level lane (no parent): POOL_X_OFFSET + POOL_LABEL_WIDTH
+        // - Sublane (has parent): add PARENT_LANE_LABEL_WIDTH for each nesting level
+        const laneX = POOL_X_OFFSET + POOL_LABEL_WIDTH + (laneNestingLevel * PARENT_LANE_LABEL_WIDTH);
+        
+        // Element start X: always aligned at max nesting level
+        // This ensures all columns start at the same X position across all lanes
+        const elementStartX = POOL_X_OFFSET + POOL_LABEL_WIDTH + (maxNestingLevel * PARENT_LANE_LABEL_WIDTH);
+        
+        // Width: from laneX to poolRightEdge
+        // This ensures all lanes have the same right edge
+        const laneWidth = poolRightEdge - laneX;
         
         laneBounds.set(laneId, {
-          x: laneX,
+          x: laneX,  // Lane shape position (for BPMN DI)
+          elementStartX: elementStartX,  // Where elements/columns start (aligned)
           y: startY,
           width: laneWidth,
           height: laneHeight,
