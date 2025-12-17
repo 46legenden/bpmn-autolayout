@@ -478,10 +478,12 @@
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="flow27b">
-      <di:waypoint x="1880" y="1086.6666666666667"/>
-      <di:waypoint x="1880" y="928.3333333333334"/>
-      <di:waypoint x="1280" y="928.3333333333334"/>
-      <di:waypoint x="1280" y="953.3333333333334"/>
+      <di:waypoint x="1930" y="1126.6666666666667"/>
+      <di:waypoint x="1980" y="1126.6666666666667"/>
+      <di:waypoint x="1980" y="928.3333333333334"/>
+      <di:waypoint x="1180" y="928.3333333333334"/>
+      <di:waypoint x="1180" y="993.3333333333334"/>
+      <di:waypoint x="1230" y="993.3333333333334"/>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="flow28">
       <di:waypoint x="1930" y="993.3333333333334"/>
@@ -531,12 +533,13 @@
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="flow46">
-      <di:waypoint x="2280" y="1285"/>
-      <di:waypoint x="2280" y="1245"/>
-      <di:waypoint x="1680" y="1245"/>
-      <di:waypoint x="1680" y="1270"/>
+      <di:waypoint x="2280" y="1335"/>
+      <di:waypoint x="2280" y="1375"/>
+      <di:waypoint x="1580" y="1375"/>
+      <di:waypoint x="1580" y="1310"/>
+      <di:waypoint x="1630" y="1310"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="2280" y="1265" width="50" height="20" />
+        <dc:Bounds x="2270" y="1345" width="50" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>

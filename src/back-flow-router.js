@@ -1,0 +1,178 @@
+/**
+ * Back-Flow Router with Smart Path Selection
+ * 
+ * Implements 3-tier routing strategy:
+ * 1. Direct path (if clear)
+ * 2. Right-around path (if direct blocked)
+ * 3. Default path (fallback)
+ */
+
+import { isVerticalPathClear, isExitSideAvailable, getTargetVerticalPosition } from './path-checker.js';
+import { calculateConnectionPoint } from './phase3.js';
+
+// Constants from phase3
+const CORRIDOR_OFFSET = 25;
+const LAYER_OFFSET = 100;
+
+/**
+ * Route a back-flow with smart path selection
+ * @param {Object} flowInfo - Flow information
+ * @param {Map} coordinates - Element coordinates
+ * @param {Map} positions - Element positions
+ * @param {Map} lanes - Lane map
+ * @param {Object} directions - Direction mappings
+ * @param {Map} flowInfos - All flow information
+ * @returns {Array} - Array of {x, y} waypoints
+ */
+export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos) {
+  const sourceCoord = coordinates.get(flowInfo.sourceId);
+  const targetCoord = coordinates.get(flowInfo.targetId);
+  
+  const sourcePos = positions.get(flowInfo.sourceId);
+  const targetPos = positions.get(flowInfo.targetId);
+  
+  // Determine if target is above or below
+  const targetPosition = getTargetVerticalPosition(sourcePos, targetPos, lanes);
+  
+  // Determine which exit sides are available
+  const upAvailable = isExitSideAvailable(flowInfo.sourceId, directions.oppCrossLane, flowInfos, flowInfo.flowId);
+  const downAvailable = isExitSideAvailable(flowInfo.sourceId, directions.crossLane, flowInfos, flowInfo.flowId);
+  const rightAvailable = isExitSideAvailable(flowInfo.sourceId, directions.alongLane, flowInfos, flowInfo.flowId);
+  
+  // Strategy 1: Try direct path (up or down)
+  if (targetPosition === "above" && upAvailable) {
+    // Check if direct upward path is clear
+    if (isVerticalPathClear(flowInfo.sourceId, flowInfo.targetId, sourcePos, targetPos, positions, coordinates, "up")) {
+      // Update flowInfo exitSide
+      if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
+      return routeDirectPath(sourceCoord, targetCoord, directions.oppCrossLane, directions, "up");
+    }
+  } else if (targetPosition === "below" && downAvailable) {
+    // Check if direct downward path is clear
+    if (isVerticalPathClear(flowInfo.sourceId, flowInfo.targetId, sourcePos, targetPos, positions, coordinates, "down")) {
+      // Update flowInfo exitSide
+      if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
+      return routeDirectPath(sourceCoord, targetCoord, directions.crossLane, directions, "down");
+    }
+  }
+  
+  // Strategy 2: Try right-around path
+  if (rightAvailable) {
+    if (targetPosition === "above") {
+      // Update flowInfo exitSide
+      if (flowInfo.source) flowInfo.source.exitSide = directions.alongLane;
+      return routeRightAroundPath(sourceCoord, targetCoord, directions, "up");
+    } else if (targetPosition === "below") {
+      // Update flowInfo exitSide
+      if (flowInfo.source) flowInfo.source.exitSide = directions.alongLane;
+      return routeRightAroundPath(sourceCoord, targetCoord, directions, "down");
+    }
+  }
+  
+  // Strategy 3: Default path (go through even if blocked)
+  if (targetPosition === "above") {
+    // Update flowInfo exitSide
+    if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
+    return routeDirectPath(sourceCoord, targetCoord, directions.oppCrossLane, directions, "up");
+  } else {
+    // Update flowInfo exitSide
+    if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
+    return routeDirectPath(sourceCoord, targetCoord, directions.crossLane, directions, "down");
+  }
+}
+
+/**
+ * Route direct path (up/down → left → down/up)
+ * @param {Object} sourceCoord - Source coordinates
+ * @param {Object} targetCoord - Target coordinates
+ * @param {string} exitSide - Exit side ("up" or "down")
+ * @param {Object} directions - Direction mappings
+ * @param {string} verticalDirection - "up" or "down"
+ * @returns {Array} - Waypoints
+ */
+function routeDirectPath(sourceCoord, targetCoord, exitSide, directions, verticalDirection) {
+  const waypoints = [];
+  
+  // Exit source
+  const exitPoint = calculateConnectionPoint(sourceCoord, exitSide);
+  waypoints.push(exitPoint);
+  
+  // Move to corridor (just above/below target)
+  const corridorY = verticalDirection === "up" 
+    ? targetCoord.y - CORRIDOR_OFFSET 
+    : targetCoord.y + targetCoord.height + CORRIDOR_OFFSET;
+  
+  waypoints.push({
+    x: exitPoint.x,
+    y: corridorY
+  });
+  
+  // Move left to target X
+  const targetX = targetCoord.x - LAYER_OFFSET / 2;
+  waypoints.push({
+    x: targetX,
+    y: corridorY
+  });
+  
+  // Enter target from left
+  const entryPoint = calculateConnectionPoint(targetCoord, directions.oppAlongLane);
+  waypoints.push({
+    x: targetX,
+    y: entryPoint.y
+  });
+  
+  waypoints.push(entryPoint);
+  
+  return waypoints;
+}
+
+/**
+ * Route right-around path (right → up/down → left → down/up)
+ * @param {Object} sourceCoord - Source coordinates
+ * @param {Object} targetCoord - Target coordinates
+ * @param {Object} directions - Direction mappings
+ * @param {string} verticalDirection - "up" or "down"
+ * @returns {Array} - Waypoints
+ */
+function routeRightAroundPath(sourceCoord, targetCoord, directions, verticalDirection) {
+  const waypoints = [];
+  
+  // Exit source to the right
+  const exitPoint = calculateConnectionPoint(sourceCoord, directions.alongLane);
+  waypoints.push(exitPoint);
+  
+  // Move right to corridor between columns
+  const corridorX = sourceCoord.x + sourceCoord.width + LAYER_OFFSET / 2;
+  waypoints.push({
+    x: corridorX,
+    y: exitPoint.y
+  });
+  
+  // Move up/down to target level
+  const corridorY = verticalDirection === "up"
+    ? targetCoord.y - CORRIDOR_OFFSET
+    : targetCoord.y + targetCoord.height + CORRIDOR_OFFSET;
+  
+  waypoints.push({
+    x: corridorX,
+    y: corridorY
+  });
+  
+  // Move left to target X
+  const targetX = targetCoord.x - LAYER_OFFSET / 2;
+  waypoints.push({
+    x: targetX,
+    y: corridorY
+  });
+  
+  // Enter target from left
+  const entryPoint = calculateConnectionPoint(targetCoord, directions.oppAlongLane);
+  waypoints.push({
+    x: targetX,
+    y: entryPoint.y
+  });
+  
+  waypoints.push(entryPoint);
+  
+  return waypoints;
+}

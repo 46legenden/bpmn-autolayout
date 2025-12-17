@@ -1,3 +1,5 @@
+import { routeBackFlowSmart } from './back-flow-router.js';
+
 /**
  * Phase 3: Coordinate Calculation
  * 
@@ -903,8 +905,8 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   
   for (const [flowId, flowInfo] of flowInfos) {
     if (flowInfo.isBackFlow) {
-      // Route back-flows with Manhattan pathfinding
-      const waypoints = routeBackFlow(flowInfo, coordinates, positions, lanes, directions, flowInfos);
+      // Route back-flows with smart path selection
+      const waypoints = routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos);
       flowWaypoints.set(flowId, waypoints);
     } else {
       // Normal flows: convert logical waypoints to pixel
