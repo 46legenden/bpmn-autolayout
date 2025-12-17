@@ -7,7 +7,7 @@
  * - Phase 3: Pixel Coordinates, BPMN DI Generation
  */
 
-import { parseXML, validateBPMN, preProcess, detectBackEdges } from './phase1.js';
+import { parseXML, validateBPMN, preProcess, detectBackEdges, phase1 } from './phase1.js';
 import { applyConfig, phase2 } from './phase2.js';
 import { phase3, injectBPMNDI } from './phase3.js';
 
@@ -43,12 +43,16 @@ export function layoutBPMN(bpmnXml, config = {}) {
       };
     }
     
-    // Pre-process (remove XOR merge gateways if configured)
-    const processedGraph = preProcess(graph, config);
+    // Use phase1 to get graph, backEdges, and backFlows
+    const phase1Result = phase1(bpmnXml, config);
+    if (!phase1Result.success) {
+      return {
+        success: false,
+        errors: phase1Result.errors || ['Phase 1 failed']
+      };
+    }
     
-    // Detect back-edges (loops)
-    const backEdges = detectBackEdges(processedGraph);
-    
+    const { graph: processedGraph, backEdges, backFlows } = phase1Result;
     const { elements, flows, lanes, pools } = processedGraph;
     
     // ===== PHASE 2: Position Assignment + Flow Information =====
@@ -57,7 +61,7 @@ export function layoutBPMN(bpmnXml, config = {}) {
     const directions = applyConfig(config);
     
     // Run Phase 2: Position assignment and flow information
-    const phase2Result = phase2(elements, flows, lanes, directions, backEdges, pools);
+    const phase2Result = phase2(elements, flows, lanes, directions, backEdges, backFlows, pools);
     
     // Debug: Check if all elements are positioned
     if (elements.size !== phase2Result.positions.size) {

@@ -14,6 +14,8 @@ import { checkAllCollisions } from './collision-checker.js';
 import { assignRows } from './row-assigner.js';
 import { getMatrixCell, markCrossLaneFlow, isPositionOccupiedByFlow, markElement, findFreeLayer } from './flow-matrix.js';
 
+const DEBUG = process.env.DEBUG === 'true';
+
 // Module-level variable to store pools for getLaneIndex
 let _pools = new Map();
 
@@ -758,9 +760,10 @@ export function determineGatewayOccupiedSides(gatewayId, elements, flows, positi
  * @param {Map} lanes - Lane map (needed for lane index calculation)
  * @param {Set} occupiedSides - Set of occupied sides (direction values from directions object)
  * @param {Object} directions - Direction mappings
+ * @param {Set} backFlowSet - Set of back flow IDs (to skip positioning for back-flows)
  * @returns {Map} - targetId → { lane, layer, row }
  */
-export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows, lanes, matrix, occupiedSides = new Set(), directions = {}) {
+export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, positions, elementLanes, flows, lanes, matrix, occupiedSides = new Set(), directions = {}, backFlowSet = new Set()) {
   const gatewayPos = positions.get(gatewayId);
   const gatewayLane = elementLanes.get(gatewayId);
   const gatewayLaneIndex = getLaneIndex(gatewayLane, lanes);
@@ -874,17 +877,31 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
 
   // Same-lane outputs with symmetric rows (always use layer + 1)
   for (let i = 0; i < sameLaneOutputs.length; i++) {
-    const { targetId, targetLane } = sameLaneOutputs[i];
+    const { flowId, targetId, targetLane } = sameLaneOutputs[i];
     const proposedLayer = gatewayPos.layer + 1;
     const existingPos = positions.get(targetId);
     
     if (existingPos) {
-      // Target already has a position - update to maximum layer
-      const finalLayer = Math.max(existingPos.layer, proposedLayer);
-      if (finalLayer > existingPos.layer) {
-        existingPos.layer = finalLayer;
+      // Check layer distance to detect back-flows
+      const layerDiff = Math.abs(gatewayPos.layer - existingPos.layer);
+      
+      if (layerDiff >= 2) {
+        // Large distance = Back-flow! Use MINIMUM (keep element at earliest position)
+        backFlowSet.add(flowId);
+        const finalLayer = Math.min(existingPos.layer, proposedLayer);
+        if (DEBUG) console.log(`  Detected back-flow ${flowId} in gateway output (layer diff=${layerDiff}): ${gatewayId} -> ${targetId} - using min layer ${finalLayer}`);
+        if (finalLayer < existingPos.layer) {
+          existingPos.layer = finalLayer;
+        }
+        outputPositions.set(targetId, existingPos);
+      } else {
+        // Small distance = Normal flow! Use MAXIMUM (progress forward)
+        const finalLayer = Math.max(existingPos.layer, proposedLayer);
+        if (finalLayer > existingPos.layer) {
+          existingPos.layer = finalLayer;
+        }
+        outputPositions.set(targetId, existingPos);
       }
-      outputPositions.set(targetId, existingPos);
     } else {
       // Find free layer (check flow and element occupation)
       // Pass row so elements in different rows can share the same layer
@@ -919,7 +936,7 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   }
   
   // Create positions with assigned rows
-  for (const { targetId, targetLane, assignedRow } of crossLaneOutputs) {
+  for (const { flowId, targetId, targetLane, assignedRow } of crossLaneOutputs) {
     const proposedLayer = gatewayPos.layer + layerOffset;
     
     const DEBUG_CALC = process.env.DEBUG_GATEWAY === 'true';
@@ -929,12 +946,26 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
     const existingPos = positions.get(targetId);
     
     if (existingPos) {
-      // Target already has a position - update to maximum layer
-      const finalLayer = Math.max(existingPos.layer, proposedLayer);
-      if (finalLayer > existingPos.layer) {
-        existingPos.layer = finalLayer;
+      // Check layer distance to detect back-flows
+      const layerDiff = Math.abs(gatewayPos.layer - existingPos.layer);
+      
+      if (layerDiff >= 2) {
+        // Large distance = Back-flow! Use MINIMUM (keep element at earliest position)
+        backFlowSet.add(flowId);
+        const finalLayer = Math.min(existingPos.layer, proposedLayer);
+        if (DEBUG) console.log(`  Detected back-flow ${flowId} in gateway output (layer diff=${layerDiff}): ${gatewayId} -> ${targetId} - using min layer ${finalLayer}`);
+        if (finalLayer < existingPos.layer) {
+          existingPos.layer = finalLayer;
+        }
+        outputPositions.set(targetId, existingPos);
+      } else {
+        // Small distance = Normal flow! Use MAXIMUM (progress forward)
+        const finalLayer = Math.max(existingPos.layer, proposedLayer);
+        if (finalLayer > existingPos.layer) {
+          existingPos.layer = finalLayer;
+        }
+        outputPositions.set(targetId, existingPos);
       }
-      outputPositions.set(targetId, existingPos);
     } else {
       // Find free layer (check flow and element occupation)
       // Pass row so elements in different rows can share the same layer
@@ -1401,8 +1432,11 @@ function optimizeMergeGatewayPositions(elements, flows, positions, elementLanes,
  * @param {Map} flows - Flow map
  * @param {Map} elementLanes - Element lane assignments
  * @param {Set} backEdgeSet - Set of back edge flow IDs
+ * @param {Set} backFlowSet - Set of back flow IDs
+ * @param {Map} elements - Element map
+ * @param {Map} flowInfos - Flow information map (to mark detected back-flows)
  */
-function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, elements) {
+function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, backFlowSet, elements, flowInfos) {
   // Count cross-lane inputs per element
   const crossLaneInputs = new Map();
   
@@ -1431,9 +1465,11 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
   
   // Build map of ALL inputs per element (not just cross-lane)
   // Exclude message flows - they don't constrain layer positioning
+  // NOTE: We include backFlowSet here because we need to detect them first!
+  // They will be filtered out during position adjustment
   const allInputs = new Map();
   for (const [flowId, flow] of flows) {
-    if (backEdgeSet.has(flowId)) continue;
+    if (backEdgeSet.has(flowId)) continue; // Skip cycles
     if (flow.type === 'messageFlow') continue; // Skip message flows
     
     const targetId = flow.targetRef;
@@ -1450,9 +1486,9 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
       const pos = positions.get(elementId);
       if (!pos) continue;
       
-      // Check if any input comes from a gateway
-      let hasGatewayInput = false;
-      const inputLayers = [];
+      // Separate gateway and non-gateway inputs
+      const gatewayInputs = new Map(); // flowId -> layer (from gateways)
+      const nonGatewayInputs = new Map(); // flowId -> layer (from non-gateways)
       
       for (const flowId of inputFlows) {
         const flow = flows.get(flowId);
@@ -1460,37 +1496,102 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
         
         const sourceId = flow.sourceRef;
         const sourceElement = elements.get(sourceId);
+        const sourcePos = positions.get(sourceId);
+        
+        if (!sourcePos) continue;
         
         // Check if source is a gateway
-        if (sourceElement && (
+        const isGateway = sourceElement && (
           sourceElement.type === 'exclusiveGateway' ||
           sourceElement.type === 'parallelGateway' ||
           sourceElement.type === 'inclusiveGateway'
-        )) {
-          hasGatewayInput = true;
-        }
+        );
         
-        const sourcePos = positions.get(sourceId);
-        if (sourcePos) {
-          inputLayers.push(sourcePos.layer);
+        if (isGateway) {
+          gatewayInputs.set(flowId, sourcePos.layer);
+        } else {
+          nonGatewayInputs.set(flowId, sourcePos.layer);
         }
       }
       
-      // Skip adjustment if any input is from a gateway
-      // Gateway output logic already handles positioning
-      if (hasGatewayInput) {
+      // Detect back-flows in gateway inputs (layer difference >= 2)
+      if (gatewayInputs.size > 0 && nonGatewayInputs.size > 0) {
+        const gatewayLayers = Array.from(gatewayInputs.values());
+        const nonGatewayLayers = Array.from(nonGatewayInputs.values());
+        const minNonGatewayLayer = Math.min(...nonGatewayLayers);
+        const maxGatewayLayer = Math.max(...gatewayLayers);
+        
+        const layerDiff = maxGatewayLayer - minNonGatewayLayer;
+        
+        if (layerDiff >= 2) {
+          // Gateway input is a back-flow
+          for (const [flowId, layer] of gatewayInputs) {
+            if (layer === maxGatewayLayer) {
+              backFlowSet.add(flowId);
+              
+              // Mark in flowInfos for Phase 3 routing
+              const flowInfo = flowInfos.get(flowId);
+              if (flowInfo) {
+                flowInfo.isBackFlow = true;
+                if (DEBUG) console.log(`  Confirmed back-flow ${flowId} (gateway input, layer diff=${layerDiff}): ${flows.get(flowId).sourceRef} -> ${elementId} - marked in flowInfos`);
+              } else {
+                if (DEBUG) console.log(`  Confirmed back-flow ${flowId} (gateway input, layer diff=${layerDiff}): ${flows.get(flowId).sourceRef} -> ${elementId} - WARNING: flowInfo not found`);
+              }
+            }
+          }
+        }
+      }
+      
+      // Skip position adjustment if any input is from a gateway
+      // Gateway output logic already handles positioning (including back-flow detection)
+      if (gatewayInputs.size > 0) {
         continue;
       }
       
-      // For non-gateway inputs: adjust to max + 1 ONLY if multiple inputs
-      // Single input should stay in same layer (direct cross-lane flow)
-      if (inputLayers.length > 0) {
-        const maxInputLayer = Math.max(...inputLayers);
-        // Only add +1 for multiple inputs (to avoid collisions)
-        // Single input: stay in same layer (direct vertical flow)
-        const requiredLayer = inputLayers.length > 1 ? maxInputLayer + 1 : maxInputLayer;
+      // Only non-gateway inputs remain - process them
+      const inputLayers = Array.from(nonGatewayInputs.values());
+      
+      // Detect back-flows: if layer difference >= 2, the rightmost input is a back-flow
+      if (inputLayers.length > 1) {
+        const minLayer = Math.min(...inputLayers);
+        const maxLayer = Math.max(...inputLayers);
+        const layerDiff = maxLayer - minLayer;
         
-        // Only adjust if element is too early
+        if (layerDiff >= 2) {
+          // Find the flow(s) with maxLayer - these are back-flows
+          for (const [flowId, layer] of nonGatewayInputs) {
+            if (layer === maxLayer) {
+              // Mark as back-flow in backFlowSet
+              backFlowSet.add(flowId);
+              
+              // Mark as back-flow in flowInfos (for Phase 3 routing)
+              const flowInfo = flowInfos.get(flowId);
+              if (flowInfo) {
+                flowInfo.isBackFlow = true;
+                if (DEBUG) console.log(`  Detected back-flow ${flowId} (non-gateway, layer diff=${layerDiff}): ${flows.get(flowId).sourceRef} -> ${elementId} - marked in flowInfos`);
+              } else {
+                if (DEBUG) console.log(`  Detected back-flow ${flowId} (non-gateway, layer diff=${layerDiff}): ${flows.get(flowId).sourceRef} -> ${elementId} - WARNING: flowInfo not found`);
+              }
+            }
+          }
+          
+          // Use minLayer for positioning (ignore back-flows)
+          const requiredLayer = minLayer + 1;
+          if (pos.layer < requiredLayer) {
+            pos.layer = requiredLayer;
+            adjusted.add(elementId);
+          }
+        } else {
+          // Normal case: use maxLayer
+          const requiredLayer = maxLayer + 1;
+          if (pos.layer < requiredLayer) {
+            pos.layer = requiredLayer;
+            adjusted.add(elementId);
+          }
+        }
+      } else if (inputLayers.length === 1) {
+        // Single input: stay in same layer (direct vertical flow)
+        const requiredLayer = inputLayers[0];
         if (pos.layer < requiredLayer) {
           pos.layer = requiredLayer;
           adjusted.add(elementId);
@@ -1666,10 +1767,11 @@ function updateFlowInfosWithAdjustedPositions(flowInfos, positions, elements, la
  * @param {Map} flows - Flow map
  * @param {Map} lanes - Lane map
  * @param {Object} directions - Direction mappings
- * @param {Array} backEdges - Back edges array
+ * @param {Array} backEdges - Back edges array (cycles)
+ * @param {Array} backFlows - Back flows array (flows going backwards in topological order)
  * @returns {Object} - { positions, flowInfos, elementLanes, matrix }
  */
-export function phase2(elements, flows, lanes, directions, backEdges, pools = new Map()) {
+export function phase2(elements, flows, lanes, directions, backEdges, backFlows = [], pools = new Map()) {
   // Store pools in module-level variable for getLaneIndex
   _pools = pools;
   
@@ -1692,6 +1794,9 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
   // Step 3.7: Validate and optimize merge gateways (before flow processing)
   // This ensures merge gateways are in correct lanes before position assignment
   validateAndOptimizeMergeGatewaysEarly(elements, flows, elementLanes, lanes);
+  
+  // Step 3.8: Initialize backFlowSet (will be extended in Step 6)
+  const backFlowSet = new Set(backFlows);
   
   // Step 4: Process all flows in topological order
   const sortedFlows = topologicalSortFlows(flows, elements, backEdgeSet);
@@ -1772,7 +1877,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
       const occupiedSides = determineGatewayOccupiedSides(sourceId, elements, flows, positions, elementLanes, lanes, directions, backEdgeSet);
       
       // Assign positions to gateway output targets
-      const { outputPositions, layerOffset } = assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows, lanes, matrix, occupiedSides, directions);
+      const { outputPositions, layerOffset } = assignGatewayOutputPositions(sourceId, sortedOutputs, positions, elementLanes, flows, lanes, matrix, occupiedSides, directions, backFlowSet);
       
       // Create flow info for this gateway output
       const flowInfo = createGatewayOutputFlowInfo(
@@ -1934,7 +2039,8 @@ export function phase2(elements, flows, lanes, directions, backEdges, pools = ne
   }
   
   // Step 6: Adjust layers for elements with multiple cross-lane inputs
-  adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, elements);
+  // backFlowSet was initialized in Step 3.8 and will be extended here
+  adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, backEdgeSet, backFlowSet, elements, flowInfos);
   
   // DEBUG: Check gateway3_split position before merge optimization
   const DEBUG_GW_POS = process.env.DEBUG_GATEWAY === 'true';

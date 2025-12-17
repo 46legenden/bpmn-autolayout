@@ -583,19 +583,24 @@ export function preProcess(graph, config = {}) {
 }
 
 /**
- * Detect back-edges (loops) in the graph
+ * Detect back-edges (loops) and back-flows in the graph
  * @param {Object} graph - { elements: Map, flows: Map }
- * @returns {Array} - Array of flow IDs that are back-edges
+ * @returns {Object} - { backEdges: Array, backFlows: Array, topoOrder: Map }
  */
 export function detectBackEdges(graph) {
   const { elements, flows } = graph;
   const backEdges = [];
   const visited = new Set();
   const recursionStack = new Set();
+  const topoOrder = new Map(); // elementId -> topological index
+  let topoIndex = 0;
 
   function dfs(elementId) {
     visited.add(elementId);
     recursionStack.add(elementId);
+    
+    // Assign topological index (pre-order)
+    topoOrder.set(elementId, topoIndex++);
 
     const element = elements.get(elementId);
     if (!element) return;
@@ -609,7 +614,7 @@ export function detectBackEdges(graph) {
       if (!visited.has(targetId)) {
         dfs(targetId);
       } else if (recursionStack.has(targetId)) {
-        // Back-edge detected
+        // Back-edge detected (cycle)
         backEdges.push(flowId);
       }
     }
@@ -623,8 +628,23 @@ export function detectBackEdges(graph) {
       dfs(id);
     }
   }
+  
+  // Detect back-flows (flows that go backwards in topological order)
+  const backFlows = [];
+  for (const [flowId, flow] of flows) {
+    // Skip back-edges (already detected)
+    if (backEdges.includes(flowId)) continue;
+    
+    const sourceIndex = topoOrder.get(flow.sourceRef);
+    const targetIndex = topoOrder.get(flow.targetRef);
+    
+    // Back-flow: source comes after target in topological order
+    if (sourceIndex !== undefined && targetIndex !== undefined && sourceIndex > targetIndex) {
+      backFlows.push(flowId);
+    }
+  }
 
-  return backEdges;
+  return { backEdges, backFlows, topoOrder };
 }
 
 /**
@@ -649,12 +669,14 @@ export function phase1(bpmnXml, config = {}) {
   // 3. Pre-process (remove XOR merge gateways if configured)
   const graph = preProcess(parseResult, config);
 
-  // 4. Detect back-edges
-  const backEdges = detectBackEdges(graph);
+  // 4. Detect back-edges and back-flows
+  const { backEdges, backFlows, topoOrder } = detectBackEdges(graph);
 
   return {
     graph,
     backEdges,
+    backFlows,
+    topoOrder,
     success: true,
     errors: []
   };
