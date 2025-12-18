@@ -1796,7 +1796,8 @@ export function phase2(elements, flows, lanes, directions, backEdges, backFlows 
   validateAndOptimizeMergeGatewaysEarly(elements, flows, elementLanes, lanes);
   
   // Step 3.8: Initialize backFlowSet (will be extended in Step 6)
-  const backFlowSet = new Set(backFlows);
+  // Include backEdges (cycles) as they also need back-flow routing
+  const backFlowSet = new Set([...backFlows, ...backEdgeSet]);
   
   // Step 4: Process all flows in topological order
   const sortedFlows = topologicalSortFlows(flows, elements, backEdgeSet);

@@ -903,10 +903,21 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   // Calculate flow waypoints
   const flowWaypoints = new Map();
   
+  // Debug: Count back-flows
+  let backFlowCount = 0;
+  for (const [, flowInfo] of flowInfos) {
+    if (flowInfo.isBackFlow) backFlowCount++;
+  }
+  const allFlowIds = Array.from(flowInfos.keys());
+  const backFlowIds = allFlowIds.filter(id => flowInfos.get(id).isBackFlow);
+
+  
+  let loopIndex = 0;
   for (const [flowId, flowInfo] of flowInfos) {
+    loopIndex++;
     if (flowInfo.isBackFlow) {
       // Route back-flows with smart path selection
-      const waypoints = routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos);
+      const waypoints = routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos, laneBounds);
       flowWaypoints.set(flowId, waypoints);
     } else {
       // Normal flows: convert logical waypoints to pixel

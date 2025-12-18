@@ -23,9 +23,11 @@ const LAYER_OFFSET = 100;
  * @param {Map} lanes - Lane map
  * @param {Object} directions - Direction mappings
  * @param {Map} flowInfos - All flow information
+ * @param {Map} laneBounds - Lane boundaries {x, y, width, height}
  * @returns {Array} - Array of {x, y} waypoints
  */
-export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos) {
+export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos, laneBounds) {
+
   const sourceCoord = coordinates.get(flowInfo.sourceId);
   const targetCoord = coordinates.get(flowInfo.targetId);
   
@@ -46,7 +48,7 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   
   // Use different routing strategy for same-lane vs cross-lane
   if (isSameLane) {
-    return routeSameLaneBackFlow(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, positions, coordinates, targetPosition, upAvailable, downAvailable, leftAvailable, rightAvailable, directions, flowInfos);
+    return routeSameLaneBackFlow(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, positions, coordinates, targetPosition, upAvailable, downAvailable, leftAvailable, rightAvailable, directions, flowInfos, laneBounds);
   }
   
   // Cross-lane back-flow routing:
@@ -57,36 +59,36 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
     // Target is above source: exit UP to nearest corridor, left, then UP to target
     if (upAvailable) {
       if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
-      return routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, "up", lanes, positions);
+      return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "up", directions, positions, laneBounds);
     }
   } else if (targetPosition === "below") {
     // Target is below source: exit DOWN to nearest corridor, left, then DOWN to target  
     if (downAvailable) {
       if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
-      return routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, "down", lanes, positions);
+      return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
     }
   }
   
   // Fallback: if preferred exit not available, try opposite direction
   if (targetPosition === "above" && downAvailable) {
     if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
-    return routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, "down", lanes, positions);
+    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
   } else if (targetPosition === "below" && upAvailable) {
     if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
-    return routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, "up", lanes, positions);
+    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "up", directions, positions, laneBounds);
   }
   
   // Last resort: use any available exit
   if (upAvailable) {
     if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
-    return routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, "up", lanes, positions);
+    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "up", directions, positions, laneBounds);
   } else if (downAvailable) {
     if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
-    return routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, "down", lanes, positions);
+    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
   }
   
   // Should never reach here, but provide fallback
-  return routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, "down", lanes, positions);
+  return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
 }
 
 /**
@@ -99,9 +101,10 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
  * @param {string} exitDirection - "up" or "down" (direction to exit source)
  * @param {Map} lanes - Lane map
  * @param {Map} positions - Element positions (to check for multiple rows)
+ * @param {Map} laneBounds - Lane boundaries {x, y, width, height}
  * @returns {Array} - Waypoints
  */
-function routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, directions, exitDirection, lanes, positions) {
+function routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, exitDirection, directions, positions, laneBounds) {
   const waypoints = [];
   
   // Step 1: Exit source element
@@ -113,43 +116,28 @@ function routeCorridorPath(sourceCoord, targetCoord, sourcePos, targetPos, direc
   // For single-row lanes: corridor is exactly midway between task edge and lane boundary
   // For multi-row lanes: corridor is close to element (between rows)
   
-  // Check if there are multiple rows in the source lane
-  const hasMultipleRows = Array.from(positions.values()).some(
-    pos => pos.lane === sourcePos.lane && pos.row !== 0
-  );
+  // Get lane bounds for the source lane
+  const sourceLaneBounds = laneBounds.get(sourcePos.lane);
   
   let corridorY;
-  if (hasMultipleRows) {
-    // Multiple rows: corridor close to element (between rows)
-    corridorY = exitDirection === "down"
-      ? sourceCoord.y + sourceCoord.height + CORRIDOR_OFFSET
-      : sourceCoord.y - CORRIDOR_OFFSET;
+  if (!sourceLaneBounds) {
+    console.error(`Lane bounds not found for lane: ${sourcePos.lane}`);
+    // Fallback to element-based calculation
+    corridorY = exitDirection === "up"
+      ? sourceCoord.y - 25
+      : sourceCoord.y + sourceCoord.height + 25;
   } else {
-    // Single row: corridor exactly midway between task edge and lane boundary
-    // Always use TASK height (80) as reference, since tasks are the largest elements
-    // LANE_BASE_HEIGHT = 180, ELEMENT_HEIGHT (task) = 80
-    // Task is centered, so margin = (180 - 80) / 2 = 50
-    const LANE_BASE_HEIGHT = 180;
-    const ELEMENT_HEIGHT = 80; // Task height (largest element)
-    const taskMargin = (LANE_BASE_HEIGHT - ELEMENT_HEIGHT) / 2;
+    // Corridor is 25px from lane edge (midway between task edge and lane boundary)
+    const CORRIDOR_FROM_LANE_EDGE = 25;
     
-    if (exitDirection === "down") {
-      // Going down: midpoint between task bottom and lane bottom
-      const taskBottom = sourceCoord.y + sourceCoord.height;
-      const laneBottom = taskBottom + taskMargin;
-      corridorY = (taskBottom + laneBottom) / 2;
-    } else {
-      // Going up: midpoint between task top and lane top
-      const taskTop = sourceCoord.y;
-      const laneTop = taskTop - taskMargin;
-      corridorY = (taskTop + laneTop) / 2;
-    }
+    corridorY = exitDirection === "up"
+      ? sourceLaneBounds.y + CORRIDOR_FROM_LANE_EDGE
+      : sourceLaneBounds.y + sourceLaneBounds.height - CORRIDOR_FROM_LANE_EDGE;
+    
+
   }
   
-  waypoints.push({
-    x: exitPoint.x,
-    y: corridorY
-  });
+  waypoints.push({ x: exitPoint.x, y: corridorY });
   
   // Step 3: Move left in corridor to before target X
   const targetX = targetCoord.x - LAYER_OFFSET / 2;
