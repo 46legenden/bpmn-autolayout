@@ -31,8 +31,6 @@ function getAvailableExitSides(sourceId, sourceCoord, directions, flowWaypoints,
   
   const usedSides = new Set();
   
-  console.log(`    Checking exits for ${sourceId}:`);
-  console.log(`      Connection points:`, connectionPoints);
   
   // Check all waypoints in all flows
   for (const [flowId, waypoints] of flowWaypoints) {
@@ -43,7 +41,6 @@ function getAvailableExitSides(sourceId, sourceCoord, directions, flowWaypoints,
     for (const waypoint of waypoints) {
       for (const [side, point] of Object.entries(connectionPoints)) {
         if (waypoint.x === point.x && waypoint.y === point.y) {
-          console.log(`      Flow ${flowId}: uses ${side} (waypoint at ${waypoint.x},${waypoint.y})`);
           usedSides.add(side);
         }
       }
@@ -73,8 +70,6 @@ function getAvailableEntrySides(targetId, targetCoord, directions, flowWaypoints
   
   const usedSides = new Set();
   
-  console.log(`    Checking entries for ${targetId}:`);
-  console.log(`      Connection points:`, connectionPoints);
   
   // Check all waypoints in all flows
   for (const [flowId, waypoints] of flowWaypoints) {
@@ -85,7 +80,6 @@ function getAvailableEntrySides(targetId, targetCoord, directions, flowWaypoints
     for (const waypoint of waypoints) {
       for (const [side, point] of Object.entries(connectionPoints)) {
         if (waypoint.x === point.x && waypoint.y === point.y) {
-          console.log(`      Flow ${flowId}: uses ${side} (waypoint at ${waypoint.x},${waypoint.y})`);
           usedSides.add(side);
         }
       }
@@ -109,8 +103,6 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
   const availableExits = getAvailableExitSides(flowInfo.sourceId, sourceCoord, directions, flowWaypoints, flowInfo.flowId);
   const availableEntries = getAvailableEntrySides(flowInfo.targetId, targetCoord, directions, flowWaypoints, flowInfo.flowId);
   
-  console.log(`  ${flowInfo.flowId}: Source ${flowInfo.sourceId} exits:`, availableExits);
-  console.log(`  ${flowInfo.flowId}: Target ${flowInfo.targetId} entries:`, availableEntries);
   
   // Determine vertical relationship (is target above or below source?)
   const targetAbove = targetCoord.y < sourceCoord.y;
@@ -121,33 +113,30 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
     : ['down', 'up', 'left', 'right'];
   
   // Define entry priority based on approach direction
+  // If target is above source (going up), prefer entering from bottom (down)
+  // If target is below source (going down), prefer entering from top (up)
   const entryPriority = targetAbove
-    ? ['up', 'down', 'left', 'right']
-    : ['down', 'up', 'left', 'right'];
+    ? ['down', 'up', 'left', 'right']  // Going up: enter from bottom
+    : ['down', 'up', 'left', 'right'];  // Going down: enter from top (which is down relative to source)
   
   // Try all combinations of exit and entry sides
   for (const exitSide of exitPriority) {
     if (!availableExits[exitSide]) {
-      console.log(`    Skipping exit ${exitSide} (not available)`);
       continue;
     }
     
     for (const entrySide of entryPriority) {
       if (!availableEntries[entrySide]) {
-        console.log(`    Skipping entry ${entrySide} (not available)`);
         continue;
       }
       
-      console.log(`    Trying ${exitSide} → ${entrySide}...`);
-      
-      // Try to route with this exit/entry combination
+            // Try to route with this exit/entry combination
       const waypoints = calculateMessageFlowWaypoints(
         flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
         exitSide, entrySide, directions, laneBounds
       );
       
       if (!waypoints || waypoints.length === 0) {
-        console.log(`      Failed: No waypoints generated`);
         continue;
       }
       
@@ -156,14 +145,11 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
         const hasCollision = hasWaypointCollision(waypoints, flowWaypoints, flowInfo.flowId);
         if (!hasCollision) {
           // Success! Use this routing
-          console.log(`✅ Message-flow ${flowInfo.flowId}: ${exitSide} → ${entrySide}`);
           return waypoints;
         } else {
-          console.log(`      Failed: Collision detected`);
         }
       } else {
         // No collision detection - use first valid routing
-        console.log(`✅ Message-flow ${flowInfo.flowId}: ${exitSide} → ${entrySide}`);
         return waypoints;
       }
     }
@@ -173,7 +159,6 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
   const fallbackExit = exitPriority.find(side => availableExits[side]) || 'down';
   const fallbackEntry = entryPriority.find(side => availableEntries[side]) || 'up';
   
-  console.log(`⚠️  Message-flow ${flowInfo.flowId}: Using fallback ${fallbackExit} → ${fallbackEntry}`);
   return calculateMessageFlowWaypoints(
     flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
     fallbackExit, fallbackEntry, directions, laneBounds
@@ -216,22 +201,21 @@ function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourc
     const corridorY = findNearestCorridor(sourceCoord.y, sourceCorridors, 'up');
     waypoints.push({ x: exitPoint.x, y: corridorY });
     
-    // Go to leftmost corridor (before first layer)
-    // Use corridor to the left of the leftmost element
-    const leftEdgeX = Math.min(sourceCoord.x, targetCoord.x) - LAYER_OFFSET / 2;
-    waypoints.push({ x: leftEdgeX, y: corridorY });
+    // Go to corridor left of source element (between source layer and previous layer)
+    const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+    waypoints.push({ x: corridorX, y: corridorY });
     
     // Navigate to entry corridor
     if (entrySide === 'up') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'up');
-      waypoints.push({ x: leftEdgeX, y: targetCorridorY });
+      waypoints.push({ x: corridorX, y: targetCorridorY });
       // Move right to target X
       waypoints.push({ x: entryPoint.x, y: targetCorridorY });
     } else if (entrySide === 'down') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'down');
-      waypoints.push({ x: leftEdgeX, y: targetCorridorY });
+      waypoints.push({ x: corridorX, y: targetCorridorY });
       // Move right to target X
       waypoints.push({ x: entryPoint.x, y: targetCorridorY });
     }
@@ -244,22 +228,21 @@ function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourc
     const corridorY = findNearestCorridor(sourceCoord.y, sourceCorridors, 'down');
     waypoints.push({ x: exitPoint.x, y: corridorY });
     
-    // Go to leftmost corridor (before first layer)
-    // Use corridor to the left of the leftmost element
-    const leftEdgeX = Math.min(sourceCoord.x, targetCoord.x) - LAYER_OFFSET / 2;
-    waypoints.push({ x: leftEdgeX, y: corridorY });
+    // Go to corridor left of source element (between source layer and previous layer)
+    const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+    waypoints.push({ x: corridorX, y: corridorY });
     
     // Navigate to entry corridor
     if (entrySide === 'up') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'up');
-      waypoints.push({ x: leftEdgeX, y: targetCorridorY });
+      waypoints.push({ x: corridorX, y: targetCorridorY });
       // Move right to target X
       waypoints.push({ x: entryPoint.x, y: targetCorridorY });
     } else if (entrySide === 'down') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'down');
-      waypoints.push({ x: leftEdgeX, y: targetCorridorY });
+      waypoints.push({ x: corridorX, y: targetCorridorY });
       // Move right to target X
       waypoints.push({ x: entryPoint.x, y: targetCorridorY });
     }

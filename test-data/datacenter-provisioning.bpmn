@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                   id="Definitions_datacenter" 
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:collaboration id="Collaboration_datacenter">
+    <bpmn:participant id="customer_pool" name="Customer" processRef="customer_process"/>
+    <bpmn:participant id="datacenter_pool" name="Datacenter Operations" processRef="datacenter_process"/>
+    <bpmn:participant id="provider_pool" name="Cloud Provider" processRef="provider_process"/>
+    
+    <!-- Message Flows -->
+    <bpmn:messageFlow id="msg_flow_1" name="Service Request" sourceRef="task_submit_request" targetRef="event_receive_request"/>
+    <bpmn:messageFlow id="msg_flow_2" name="Quote" sourceRef="task_send_quote" targetRef="event_receive_quote"/>
+    <bpmn:messageFlow id="msg_flow_3" name="Order Confirmation" sourceRef="task_confirm_order" targetRef="event_receive_confirmation"/>
+    <bpmn:messageFlow id="msg_flow_4" name="Provision Request" sourceRef="task_request_resources" targetRef="event_receive_provision_request"/>
+    <bpmn:messageFlow id="msg_flow_5" name="Resources Ready" sourceRef="task_allocate_resources" targetRef="event_resources_ready"/>
+    <bpmn:messageFlow id="msg_flow_6" name="Deployment Complete" sourceRef="task_deploy_service" targetRef="event_deployment_complete"/>
+  </bpmn:collaboration>
+  
+  <!-- Customer Process -->
+  <bpmn:process id="customer_process" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_customer_business" name="Business Unit">
+        <bpmn:flowNodeRef>start_customer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_submit_request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>event_receive_quote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_review_quote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_approve</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_customer_finance" name="Finance">
+        <bpmn:flowNodeRef>task_approve_budget</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_confirm_order</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_customer_it" name="IT Department">
+        <bpmn:flowNodeRef>event_deployment_complete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_validate_service</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_service_ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_report_issue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_customer</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Business Unit -->
+    <bpmn:startEvent id="start_customer" name="Need Service"/>
+    <bpmn:userTask id="task_submit_request" name="Submit Service Request"/>
+    <bpmn:intermediateCatchEvent id="event_receive_quote" name="Receive Quote"/>
+    <bpmn:userTask id="task_review_quote" name="Review Quote"/>
+    <bpmn:exclusiveGateway id="gateway_approve" name="Approved?"/>
+    
+    <!-- Finance -->
+    <bpmn:manualTask id="task_approve_budget" name="Approve Budget"/>
+    <bpmn:serviceTask id="task_confirm_order" name="Confirm Order"/>
+    
+    <!-- IT Department -->
+    <bpmn:intermediateCatchEvent id="event_deployment_complete" name="Deployment Complete"/>
+    <bpmn:userTask id="task_validate_service" name="Validate Service"/>
+    <bpmn:exclusiveGateway id="gateway_service_ok" name="Service OK?"/>
+    <bpmn:userTask id="task_report_issue" name="Report Issue"/>
+    <bpmn:endEvent id="end_customer" name="Service Active"/>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_c1" sourceRef="start_customer" targetRef="task_submit_request"/>
+    <bpmn:sequenceFlow id="flow_c2" sourceRef="task_submit_request" targetRef="event_receive_quote"/>
+    <bpmn:sequenceFlow id="flow_c3" sourceRef="event_receive_quote" targetRef="task_review_quote"/>
+    <bpmn:sequenceFlow id="flow_c4" sourceRef="task_review_quote" targetRef="gateway_approve"/>
+    <bpmn:sequenceFlow id="flow_c5" name="Yes" sourceRef="gateway_approve" targetRef="task_approve_budget"/>
+    <bpmn:sequenceFlow id="flow_c6" name="No" sourceRef="gateway_approve" targetRef="task_submit_request"/>
+    <bpmn:sequenceFlow id="flow_c7" sourceRef="task_approve_budget" targetRef="task_confirm_order"/>
+    <bpmn:sequenceFlow id="flow_c8" sourceRef="task_confirm_order" targetRef="event_deployment_complete"/>
+    <bpmn:sequenceFlow id="flow_c9" sourceRef="event_deployment_complete" targetRef="task_validate_service"/>
+    <bpmn:sequenceFlow id="flow_c10" sourceRef="task_validate_service" targetRef="gateway_service_ok"/>
+    <bpmn:sequenceFlow id="flow_c11" name="Yes" sourceRef="gateway_service_ok" targetRef="end_customer"/>
+    <bpmn:sequenceFlow id="flow_c12" name="No" sourceRef="gateway_service_ok" targetRef="task_report_issue"/>
+    <bpmn:sequenceFlow id="flow_c13" sourceRef="task_report_issue" targetRef="task_validate_service"/>
+  </bpmn:process>
+  
+  <!-- Datacenter Process -->
+  <bpmn:process id="datacenter_process" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_dc_sales" name="Sales">
+        <bpmn:flowNodeRef>event_receive_request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_analyze_requirements</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_quote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_send_quote</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_dc_operations" name="Operations">
+        <bpmn:flowNodeRef>event_receive_confirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_plan_deployment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_request_resources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>event_resources_ready</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_configure_network</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_dc_engineering" name="Engineering">
+        <bpmn:flowNodeRef>task_deploy_service</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_run_tests</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_tests_pass</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_fix_issues</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_datacenter</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Sales -->
+    <bpmn:intermediateCatchEvent id="event_receive_request" name="Receive Request"/>
+    <bpmn:userTask id="task_analyze_requirements" name="Analyze Requirements"/>
+    <bpmn:serviceTask id="task_create_quote" name="Create Quote"/>
+    <bpmn:serviceTask id="task_send_quote" name="Send Quote"/>
+    
+    <!-- Operations -->
+    <bpmn:intermediateCatchEvent id="event_receive_confirmation" name="Receive Confirmation"/>
+    <bpmn:userTask id="task_plan_deployment" name="Plan Deployment"/>
+    <bpmn:serviceTask id="task_request_resources" name="Request Resources"/>
+    <bpmn:intermediateCatchEvent id="event_resources_ready" name="Resources Ready"/>
+    <bpmn:serviceTask id="task_configure_network" name="Configure Network"/>
+    
+    <!-- Engineering -->
+    <bpmn:serviceTask id="task_deploy_service" name="Deploy Service"/>
+    <bpmn:serviceTask id="task_run_tests" name="Run Tests"/>
+    <bpmn:exclusiveGateway id="gateway_tests_pass" name="Tests Pass?"/>
+    <bpmn:userTask id="task_fix_issues" name="Fix Issues"/>
+    <bpmn:endEvent id="end_datacenter" name="Service Deployed"/>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_d1" sourceRef="event_receive_request" targetRef="task_analyze_requirements"/>
+    <bpmn:sequenceFlow id="flow_d2" sourceRef="task_analyze_requirements" targetRef="task_create_quote"/>
+    <bpmn:sequenceFlow id="flow_d3" sourceRef="task_create_quote" targetRef="task_send_quote"/>
+    <bpmn:sequenceFlow id="flow_d4" sourceRef="task_send_quote" targetRef="event_receive_confirmation"/>
+    <bpmn:sequenceFlow id="flow_d5" sourceRef="event_receive_confirmation" targetRef="task_plan_deployment"/>
+    <bpmn:sequenceFlow id="flow_d6" sourceRef="task_plan_deployment" targetRef="task_request_resources"/>
+    <bpmn:sequenceFlow id="flow_d7" sourceRef="task_request_resources" targetRef="event_resources_ready"/>
+    <bpmn:sequenceFlow id="flow_d8" sourceRef="event_resources_ready" targetRef="task_configure_network"/>
+    <bpmn:sequenceFlow id="flow_d9" sourceRef="task_configure_network" targetRef="task_deploy_service"/>
+    <bpmn:sequenceFlow id="flow_d10" sourceRef="task_deploy_service" targetRef="task_run_tests"/>
+    <bpmn:sequenceFlow id="flow_d11" sourceRef="task_run_tests" targetRef="gateway_tests_pass"/>
+    <bpmn:sequenceFlow id="flow_d12" name="Yes" sourceRef="gateway_tests_pass" targetRef="end_datacenter"/>
+    <bpmn:sequenceFlow id="flow_d13" name="No" sourceRef="gateway_tests_pass" targetRef="task_fix_issues"/>
+    <bpmn:sequenceFlow id="flow_d14" sourceRef="task_fix_issues" targetRef="task_deploy_service"/>
+  </bpmn:process>
+  
+  <!-- Cloud Provider Process -->
+  <bpmn:process id="provider_process" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_provider_provisioning" name="Provisioning">
+        <bpmn:flowNodeRef>event_receive_provision_request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_check_capacity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_capacity_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_wait_for_capacity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_allocate_resources</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_provider_support" name="Support">
+        <bpmn:flowNodeRef>task_monitor_resources</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_provider</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <!-- Provisioning -->
+    <bpmn:intermediateCatchEvent id="event_receive_provision_request" name="Receive Request"/>
+    <bpmn:serviceTask id="task_check_capacity" name="Check Capacity"/>
+    <bpmn:exclusiveGateway id="gateway_capacity_available" name="Capacity Available?"/>
+    <bpmn:manualTask id="task_wait_for_capacity" name="Wait for Capacity"/>
+    <bpmn:serviceTask id="task_allocate_resources" name="Allocate Resources"/>
+    
+    <!-- Support -->
+    <bpmn:serviceTask id="task_monitor_resources" name="Monitor Resources"/>
+    <bpmn:endEvent id="end_provider" name="Resources Active"/>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_p1" sourceRef="event_receive_provision_request" targetRef="task_check_capacity"/>
+    <bpmn:sequenceFlow id="flow_p2" sourceRef="task_check_capacity" targetRef="gateway_capacity_available"/>
+    <bpmn:sequenceFlow id="flow_p3" name="Yes" sourceRef="gateway_capacity_available" targetRef="task_allocate_resources"/>
+    <bpmn:sequenceFlow id="flow_p4" name="No" sourceRef="gateway_capacity_available" targetRef="task_wait_for_capacity"/>
+    <bpmn:sequenceFlow id="flow_p5" sourceRef="task_wait_for_capacity" targetRef="task_check_capacity"/>
+    <bpmn:sequenceFlow id="flow_p6" sourceRef="task_allocate_resources" targetRef="task_monitor_resources"/>
+    <bpmn:sequenceFlow id="flow_p7" sourceRef="task_monitor_resources" targetRef="end_provider"/>
+  </bpmn:process>
+  
+</bpmn:definitions>
