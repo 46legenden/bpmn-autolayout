@@ -1152,6 +1152,7 @@ function topologicalSortFlows(flows, elements, backEdgeSet = new Set()) {
   // Build outgoing flows map
   for (const [flowId, flow] of flows) {
     if (backEdgeSet.has(flowId)) continue; // Skip back-flows
+    if (flow.type === 'messageFlow') continue; // Skip message flows
     const sourceId = flow.sourceRef;
     if (outgoingFlows.has(sourceId)) {
       outgoingFlows.get(sourceId).push(flowId);

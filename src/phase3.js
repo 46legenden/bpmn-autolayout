@@ -1,4 +1,5 @@
 import { routeBackFlowSmart } from './back-flow-router.js';
+import { routeMessageFlow } from './message-flow-router.js';
 
 /**
  * Phase 3: Coordinate Calculation
@@ -915,9 +916,16 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   const backFlowIds = allFlowIds.filter(id => flowInfos.get(id).isBackFlow);
 
   
+  // Route flows in two passes:
+  // Pass 1: Normal flows and back-flows (not message flows)
+  // Pass 2: Message flows (after all other flows are routed)
+  
   let loopIndex = 0;
   for (const [flowId, flowInfo] of flowInfos) {
     loopIndex++;
+    // Skip message flows in first pass
+    if (flowInfo.isMessageFlow) continue;
+    
     if (flowInfo.isBackFlow) {
       // Route back-flows with smart path selection and collision detection
       const waypoints = routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos, laneBounds, corridorUsage, flowWaypoints);
@@ -925,6 +933,20 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
     } else {
       // Normal flows: convert logical waypoints to pixel
       const waypoints = calculateFlowWaypoints(flowInfo, coordinates, lanes, directions, laneBounds, elements, flows);
+      flowWaypoints.set(flowId, waypoints);
+    }
+  }
+  
+  // Pass 2: Route message flows last (after all other flows)
+  for (const [flowId, flowInfo] of flowInfos) {
+    if (flowInfo.isMessageFlow) {
+      // Route message flows with exit/entry side checking
+      const sourceCoord = coordinates.get(flowInfo.sourceId);
+      const targetCoord = coordinates.get(flowInfo.targetId);
+      const sourcePos = positions.get(flowInfo.sourceId);
+      const targetPos = positions.get(flowInfo.targetId);
+      
+      const waypoints = routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, flowWaypoints, flowInfos);
       flowWaypoints.set(flowId, waypoints);
     }
   }

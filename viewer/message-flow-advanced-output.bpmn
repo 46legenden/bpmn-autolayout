@@ -8,7 +8,16 @@
   <bpmn:collaboration id="Collaboration_1">
     <bpmn:participant id="customer_pool" name="Customer Company" processRef="customer_process"/>
     <bpmn:participant id="supplier_pool" name="Supplier Company" processRef="supplier_process"/>
-    <!-- Message Flows removed for testing -->
+    <!-- Message Flows between pools -->
+    <bpmn:messageFlow id="msg_flow_1" name="Quote Request" sourceRef="task_request_quote" targetRef="task_prepare_quote"/>
+    <!-- Testing one flow at a time -->
+    <!--
+    <bpmn:messageFlow id="msg_flow_2" name="Quote" sourceRef="task_send_quote" targetRef="task_review_quote"/>
+    <bpmn:messageFlow id="msg_flow_3" name="Order" sourceRef="task_send_order" targetRef="task_receive_order"/>
+    <bpmn:messageFlow id="msg_flow_4" name="Shipment Confirmation" sourceRef="task_send_confirmation" targetRef="task_receive_invoice"/>
+    <bpmn:messageFlow id="msg_flow_5" name="Invoice" sourceRef="task_send_invoice" targetRef="task_receive_invoice"/>
+    <bpmn:messageFlow id="msg_flow_6" name="Payment Confirmation" sourceRef="task_process_payment" targetRef="task_receive_confirmation"/>
+    -->
   </bpmn:collaboration>
   <!-- Customer Process -->
   <bpmn:process id="customer_process" isExecutable="false">
@@ -157,19 +166,19 @@
     <bpmndi:BPMNShape bpmnElement="task_request_quote">
       <dc:Bounds x="430" y="130" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="420" y="105" width="120" height="20" />
+        <dc:Bounds x="305" y="160" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_review_quote">
       <dc:Bounds x="630" y="130" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="620" y="105" width="120" height="20" />
+        <dc:Bounds x="735" y="160" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_send_order">
       <dc:Bounds x="1030" y="130" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="1020" y="215" width="120" height="20" />
+        <dc:Bounds x="1020" y="105" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_approve_order">
@@ -187,19 +196,19 @@
     <bpmndi:BPMNShape bpmnElement="task_receive_invoice">
       <dc:Bounds x="1230" y="490" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="1220" y="575" width="120" height="20" />
+        <dc:Bounds x="1105" y="520" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_process_payment">
       <dc:Bounds x="1430" y="490" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="1420" y="575" width="120" height="20" />
+        <dc:Bounds x="1420" y="465" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_prepare_quote">
       <dc:Bounds x="430" y="720" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="420" y="695" width="120" height="20" />
+        <dc:Bounds x="305" y="750" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_send_quote">
@@ -211,7 +220,7 @@
     <bpmndi:BPMNShape bpmnElement="task_receive_order">
       <dc:Bounds x="830" y="720" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="820" y="695" width="120" height="20" />
+        <dc:Bounds x="935" y="750" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_check_inventory">
@@ -229,13 +238,13 @@
     <bpmndi:BPMNShape bpmnElement="task_send_confirmation">
       <dc:Bounds x="1430" y="900" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="1420" y="875" width="120" height="20" />
+        <dc:Bounds x="1535" y="930" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_send_invoice">
       <dc:Bounds x="1430" y="1080" width="100" height="80"/>
       <bpmndi:BPMNLabel>
-        <dc:Bounds x="1420" y="1165" width="120" height="20" />
+        <dc:Bounds x="1305" y="1110" width="120" height="20" />
       </bpmndi:BPMNLabel>
     </bpmndi:BPMNShape>
     <bpmndi:BPMNShape bpmnElement="task_receive_confirmation">
@@ -357,6 +366,70 @@
     <bpmndi:BPMNEdge bpmnElement="flow_s11">
       <di:waypoint x="1730" y="1120"/>
       <di:waypoint x="1862" y="1120"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="msg_flow_1">
+      <di:waypoint x="480" y="130"/>
+      <di:waypoint x="480" y="105"/>
+      <di:waypoint x="380" y="105"/>
+      <di:waypoint x="380" y="695"/>
+      <di:waypoint x="480" y="695"/>
+      <di:waypoint x="480" y="720"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="490" y="105" width="101" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="msg_flow_2">
+      <di:waypoint x="680" y="720"/>
+      <di:waypoint x="680" y="695"/>
+      <di:waypoint x="580" y="695"/>
+      <di:waypoint x="580" y="105"/>
+      <di:waypoint x="680" y="105"/>
+      <di:waypoint x="680" y="130"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="690" y="695" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="msg_flow_3">
+      <di:waypoint x="1080" y="210"/>
+      <di:waypoint x="1080" y="235"/>
+      <di:waypoint x="780" y="235"/>
+      <di:waypoint x="780" y="695"/>
+      <di:waypoint x="880" y="695"/>
+      <di:waypoint x="880" y="720"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1090" y="185" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="msg_flow_4">
+      <di:waypoint x="1480" y="900"/>
+      <di:waypoint x="1480" y="875"/>
+      <di:waypoint x="1180" y="875"/>
+      <di:waypoint x="1180" y="595"/>
+      <di:waypoint x="1280" y="595"/>
+      <di:waypoint x="1280" y="570"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1490" y="875" width="157" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="msg_flow_5">
+      <di:waypoint x="1480" y="1160"/>
+      <di:waypoint x="1480" y="1185"/>
+      <di:waypoint x="1180" y="1185"/>
+      <di:waypoint x="1230" y="530"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1490" y="1135" width="59" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="msg_flow_6">
+      <di:waypoint x="1480" y="570"/>
+      <di:waypoint x="1480" y="595"/>
+      <di:waypoint x="1380" y="595"/>
+      <di:waypoint x="1380" y="1055"/>
+      <di:waypoint x="1680" y="1055"/>
+      <di:waypoint x="1680" y="1080"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1490" y="545" width="150" height="20" />
+      </bpmndi:BPMNLabel>
     </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

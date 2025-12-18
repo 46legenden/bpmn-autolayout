@@ -48,7 +48,9 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   const leftAvailable = isExitSideAvailable(flowInfo.sourceId, directions.oppAlongLane, flowInfos, flowInfo.flowId);
   
   // Check if this is a true back-flow (target layer < source layer)
-  const isBackFlow = targetPos.layer < sourcePos.layer;
+  // Cross-lane back-flows within same pool are OK
+  // Message flows between different pools should NOT use cascade routing
+  const isBackFlow = targetPos.layer < sourcePos.layer && !flowInfo.isMessageFlow;
   
   if (isBackFlow) {
     // Use cascading routing strategy for back-flows
