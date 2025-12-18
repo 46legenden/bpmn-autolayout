@@ -903,6 +903,9 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   // Calculate flow waypoints
   const flowWaypoints = new Map();
   
+  // Track corridor usage to prevent overlaps
+  const corridorUsage = new Map();
+  
   // Debug: Count back-flows
   let backFlowCount = 0;
   for (const [, flowInfo] of flowInfos) {
@@ -916,8 +919,8 @@ export function phase3(phase2Result, elements, lanes, directions, pools = new Ma
   for (const [flowId, flowInfo] of flowInfos) {
     loopIndex++;
     if (flowInfo.isBackFlow) {
-      // Route back-flows with smart path selection
-      const waypoints = routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos, laneBounds);
+      // Route back-flows with smart path selection and collision detection
+      const waypoints = routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos, laneBounds, corridorUsage, flowWaypoints);
       flowWaypoints.set(flowId, waypoints);
     } else {
       // Normal flows: convert logical waypoints to pixel

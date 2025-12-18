@@ -1,11 +1,12 @@
 /**
- * Manhattan Router
+ * Manhattan Router (Refactored)
  * 
  * Unified routing for back-flows and message flows (same-lane and cross-lane)
- * Uses nearest corridor strategy to avoid element collisions
+ * Uses nearest corridor strategy with full waypoint collision detection
  */
 
 import { calculateConnectionPoint } from './phase3.js';
+import { hasWaypointCollision } from './waypoint-collision.js';
 
 // Constants
 const CORRIDOR_OFFSET = 25;
@@ -13,7 +14,7 @@ const LAYER_OFFSET = 100;
 const ELEMENT_HEIGHT = 80;
 
 /**
- * Calculate all corridor Y-values in a lane
+ * Get all corridor Y-values in a lane
  * @param {Object} laneBound - Lane bounds with y, height, maxRows
  * @returns {Array} - Array of corridor Y-values
  */
@@ -49,142 +50,202 @@ export function getCorridorsInLane(laneBound) {
 }
 
 /**
- * Find nearest corridor to a given Y position
- * @param {number} y - Y position
- * @param {Array} corridors - Array of corridor Y-values
+ * Find nearest corridor to a Y position
+ * @param {number} y - Source Y position
+ * @param {Array} corridors - Available corridors (sorted)
  * @param {string} direction - 'up' or 'down'
- * @returns {number} - Nearest corridor Y-value
+ * @returns {number} - Nearest corridor Y value
  */
 export function findNearestCorridor(y, corridors, direction) {
+  if (corridors.length === 0) return y;
+  
+  // Filter corridors by direction
+  const above = corridors.filter(c => c < y);
+  const below = corridors.filter(c => c > y);
+  
   if (direction === 'up') {
-    // Find nearest corridor above
-    const above = corridors.filter(c => c < y);
     return above.length > 0 ? above[above.length - 1] : corridors[0];
   } else {
-    // Find nearest corridor below
-    const below = corridors.filter(c => c > y);
     return below.length > 0 ? below[0] : corridors[corridors.length - 1];
   }
 }
 
 /**
- * Check if vertical path from corridor to target is clear
- * @param {number} corridorY - Y position of corridor
- * @param {Object} targetCoord - Target coordinates
- * @param {Object} targetPos - Target position (lane, layer, row)
- * @param {Map} positions - All element positions
- * @param {Map} coordinates - All element coordinates
- * @param {string} flowId - Current flow ID (to exclude from check)
- * @returns {boolean} - True if path is clear
+ * Check if vertical path to target column has flow collision
  */
-function isVerticalPathToTargetClear(corridorY, targetCoord, targetPos, positions, coordinates, targetId) {
-  // Check if any elements are in the target column between corridor and target
-  const targetX = targetCoord.x + targetCoord.width / 2;
+function hasVerticalFlowCollision(corridorY, targetCenterX, targetCoord, flowWaypoints, flowId) {
   const minY = Math.min(corridorY, targetCoord.y);
   const maxY = Math.max(corridorY, targetCoord.y + targetCoord.height);
+  const tolerance = 5; // Allow small tolerance
   
-  for (const [elementId, pos] of positions) {
-    // Skip the target element itself
-    if (elementId === targetId) continue;
+  for (const [existingFlowId, waypoints] of flowWaypoints) {
+    if (existingFlowId === flowId) continue;
     
-    const coord = coordinates.get(elementId);
-    if (!coord) continue;
-    
-    // Check if element is in same column (layer)
-    if (pos.layer === targetPos.layer) {
-      // Check if element is between corridor and target
-      const elementCenterY = coord.y + coord.height / 2;
-      if (elementCenterY > minY && elementCenterY < maxY) {
-        return false; // Element blocks the path
+    // Check each segment
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const p1 = waypoints[i];
+      const p2 = waypoints[i + 1];
+      
+      // Check if this is a vertical segment near target column
+      if (Math.abs(p1.x - p2.x) < 1 && Math.abs(p1.x - targetCenterX) < tolerance) {
+        const segMinY = Math.min(p1.y, p2.y);
+        const segMaxY = Math.max(p1.y, p2.y);
+        
+        // Check for Y overlap
+        if (!(maxY < segMinY || minY > segMaxY)) {
+          return true; // Collision!
+        }
       }
     }
   }
   
-  return true; // Path is clear
+  return false;
 }
 
 /**
- * Unified Manhattan routing for back-flows and message flows
- * Works for both same-lane and cross-lane scenarios
- * 
- * @param {Object} flowInfo - Flow information
- * @param {Object} sourceCoord - Source coordinates
- * @param {Object} targetCoord - Target coordinates
- * @param {Object} sourcePos - Source position (lane, layer, row)
- * @param {Object} targetPos - Target position (lane, layer, row)
- * @param {Object} directions - Direction mappings
- * @param {Map} laneBounds - Lane boundaries
- * @param {Map} positions - All element positions (for path checking)
- * @param {Map} coordinates - All element coordinates (for path checking)
- * @returns {Array} - Waypoints
+ * Check if vertical path to target is clear (element collision)
  */
-export function routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates) {
-  const waypoints = [];
+function isVerticalPathToTargetClear(corridorY, targetCoord, targetPos, positions, coordinates, targetId) {
+  const targetCenterX = targetCoord.x + targetCoord.width / 2;
+  const targetLayer = targetPos.layer;
+  const targetLane = targetPos.lane;
   
-  // Get lane bounds
-  const sourceLaneBounds = laneBounds.get(sourcePos.lane);
-  const targetLaneBounds = laneBounds.get(targetPos.lane);
-  
-  if (!sourceLaneBounds || !targetLaneBounds) {
-    console.error('Lane bounds not found for Manhattan routing');
-    return waypoints;
+  // Check if any other element is in the same column (layer) and lane
+  for (const [elementId, pos] of positions) {
+    if (elementId === targetId) continue;
+    if (pos.lane !== targetLane) continue;
+    if (pos.layer !== targetLayer) continue;
+    
+    // Element in same column - check if it blocks the path
+    const coord = coordinates.get(elementId);
+    if (!coord) continue;
+    
+    const minY = Math.min(corridorY, targetCoord.y);
+    const maxY = Math.max(corridorY, targetCoord.y + targetCoord.height);
+    
+    if (coord.y < maxY && coord.y + coord.height > minY) {
+      return false; // Element blocks the path
+    }
   }
   
-  // Determine vertical relationship
-  const targetAbove = targetCoord.y < sourceCoord.y;
-  const exitDirection = targetAbove ? 'up' : 'down';
+  return true;
+}
+
+/**
+ * Calculate waypoints for a given corridor
+ */
+function calculateWaypointsWithCorridor(corridorY, flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, exitDirection, flowWaypoints) {
+  const waypoints = [];
   
   // Step 1: Exit source element
   const exitSide = exitDirection === 'up' ? directions.oppCrossLane : directions.crossLane;
   const exitPoint = calculateConnectionPoint(sourceCoord, exitSide);
   waypoints.push(exitPoint);
   
-  // Update flowInfo exit side
-  if (flowInfo.source) {
-    flowInfo.source.exitSide = exitSide;
-  }
-  
-  // Step 2: Move to nearest corridor in source lane
-  const sourceCorridors = getCorridorsInLane(sourceLaneBounds);
-  const corridorY = findNearestCorridor(sourceCoord.y, sourceCorridors, exitDirection);
+  // Step 2: Move to corridor
   waypoints.push({ x: exitPoint.x, y: corridorY });
   
   // Step 3: Move horizontally in corridor
-  // Check if we can go directly to target column or need to go left first
   const targetCenterX = targetCoord.x + targetCoord.width / 2;
-  const canEnterDirectly = positions && coordinates && 
+  
+  // Check both element collision and flow collision
+  const noElementCollision = positions && coordinates && 
     isVerticalPathToTargetClear(corridorY, targetCoord, targetPos, positions, coordinates, flowInfo.targetId);
+  const noFlowCollision = !flowWaypoints || 
+    !hasVerticalFlowCollision(corridorY, targetCenterX, targetCoord, flowWaypoints, flowInfo.flowId);
+  
+  const canEnterDirectly = noElementCollision && noFlowCollision;
   
   if (canEnterDirectly) {
     // Optimized path: Go directly to target column, then enter from top/bottom
     waypoints.push({ x: targetCenterX, y: corridorY });
     
-    // Enter from top or bottom (depending on where we came from)
+    // Enter from top or bottom
     const entrySide = exitDirection === 'up' ? directions.crossLane : directions.oppCrossLane;
     const entryPoint = calculateConnectionPoint(targetCoord, entrySide);
     waypoints.push(entryPoint);
     
-    // Update flowInfo entry side
-    if (flowInfo.target) {
-      flowInfo.target.entrySide = entrySide;
-    }
+    // Update flowInfo
+    if (flowInfo.source) flowInfo.source.exitSide = exitSide;
+    if (flowInfo.target) flowInfo.target.entrySide = entrySide;
   } else {
-    // Default path: Go left of target, then enter from left
+    // Fallback path: Go left of target, then enter from bottom
     const targetX = targetCoord.x - LAYER_OFFSET / 2;
     waypoints.push({ x: targetX, y: corridorY });
     
-    // Move vertically to target element level
-    const entryPoint = calculateConnectionPoint(targetCoord, directions.oppAlongLane);
-    waypoints.push({ x: targetX, y: entryPoint.y });
+    // Move vertically to below target (with offset)
+    const belowTargetY = targetCoord.y + targetCoord.height + 20;
+    waypoints.push({ x: targetX, y: belowTargetY });
     
-    // Enter target from left
+    // Move horizontally to target center
+    waypoints.push({ x: targetCenterX, y: belowTargetY });
+    
+    // Enter target from bottom
+    const entryPoint = calculateConnectionPoint(targetCoord, directions.crossLane);
     waypoints.push(entryPoint);
     
-    // Update flowInfo entry side
-    if (flowInfo.target) {
-      flowInfo.target.entrySide = directions.oppAlongLane;
-    }
+    // Update flowInfo
+    if (flowInfo.source) flowInfo.source.exitSide = exitSide;
+    if (flowInfo.target) flowInfo.target.entrySide = directions.crossLane;
   }
   
   return waypoints;
+}
+
+/**
+ * Manhattan routing with full waypoint collision detection
+ */
+export function routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, corridorUsage = null, flowInfos = null, flowWaypoints = null) {
+  // Get lane bounds
+  const sourceLaneBounds = laneBounds.get(sourcePos.lane);
+  const targetLaneBounds = laneBounds.get(targetPos.lane);
+  
+  if (!sourceLaneBounds || !targetLaneBounds) {
+    console.error('Lane bounds not found for Manhattan routing');
+    return [];
+  }
+  
+  // Determine vertical relationship
+  const targetAbove = targetCoord.y < sourceCoord.y;
+  const exitDirection = targetAbove ? 'up' : 'down';
+  
+  // Get available corridors
+  const sourceCorridors = getCorridorsInLane(sourceLaneBounds);
+  
+  // Try corridors in order of proximity until we find one without collision
+  const triedCorridors = new Set();
+  
+  while (triedCorridors.size < sourceCorridors.length) {
+    // Find nearest untried corridor
+    const remainingCorridors = sourceCorridors.filter(c => !triedCorridors.has(c));
+    if (remainingCorridors.length === 0) break;
+    
+    const corridorY = findNearestCorridor(sourceCoord.y, remainingCorridors, exitDirection);
+    triedCorridors.add(corridorY);
+    
+    // Calculate complete waypoints with this corridor
+    const waypoints = calculateWaypointsWithCorridor(
+      corridorY, flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
+      directions, laneBounds, positions, coordinates, exitDirection, flowWaypoints
+    );
+    
+    // Test for collision with existing flows
+    if (flowWaypoints) {
+      const hasCollision = hasWaypointCollision(waypoints, flowWaypoints, flowInfo.flowId);
+      if (hasCollision) {
+        // Collision detected - try next corridor
+        continue;
+      }
+    }
+    
+    // No collision - use these waypoints
+    return waypoints;
+  }
+  
+  // All corridors have collisions - use the first one anyway (fallback)
+  const corridorY = findNearestCorridor(sourceCoord.y, sourceCorridors, exitDirection);
+  return calculateWaypointsWithCorridor(
+    corridorY, flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
+    directions, laneBounds, positions, coordinates, exitDirection, flowWaypoints
+  );
 }

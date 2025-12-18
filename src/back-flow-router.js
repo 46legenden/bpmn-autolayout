@@ -26,7 +26,7 @@ const LAYER_OFFSET = 100;
  * @param {Map} laneBounds - Lane boundaries {x, y, width, height}
  * @returns {Array} - Array of {x, y} waypoints
  */
-export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos, laneBounds) {
+export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, directions, flowInfos, laneBounds, corridorUsage = null, flowWaypoints = null) {
 
   const sourceCoord = coordinates.get(flowInfo.sourceId);
   const targetCoord = coordinates.get(flowInfo.targetId);
@@ -48,7 +48,7 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   
   // Use unified Manhattan routing for all back-flows and message flows
   // Works for both same-lane and cross-lane scenarios
-  return routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates);
+  return routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, corridorUsage, flowInfos, flowWaypoints);
 }
 
 /**
