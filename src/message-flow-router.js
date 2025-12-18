@@ -117,7 +117,7 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
   // If target is below source (going down), prefer entering from top (up)
   const entryPriority = targetAbove
     ? ['down', 'up', 'left', 'right']  // Going up: enter from bottom
-    : ['down', 'up', 'left', 'right'];  // Going down: enter from top (which is down relative to source)
+    : ['up', 'down', 'left', 'right'];  // Going down: enter from top
   
   // Try all combinations of exit and entry sides
   for (const exitSide of exitPriority) {
@@ -130,10 +130,10 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
         continue;
       }
       
-            // Try to route with this exit/entry combination
+      // Try to route with this exit/entry combination
       const waypoints = calculateMessageFlowWaypoints(
         flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
-        exitSide, entrySide, directions, laneBounds
+        exitSide, entrySide, directions, laneBounds, coordinates
       );
       
       if (!waypoints || waypoints.length === 0) {
@@ -161,14 +161,51 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
   
   return calculateMessageFlowWaypoints(
     flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
-    fallbackExit, fallbackEntry, directions, laneBounds
+    fallbackExit, fallbackEntry, directions, laneBounds, coordinates
   );
+}
+
+/**
+ * Check if vertical column at targetX is free of obstacles between sourceY and targetY
+ */
+function isVerticalColumnFree(targetX, sourceY, targetY, sourceCoord, targetCoord, coordinates) {
+  if (!coordinates) return false;
+  
+  const minY = Math.min(sourceY, targetY);
+  const maxY = Math.max(sourceY, targetY);
+  const TOLERANCE = 50; // X-position tolerance for "same column"
+  
+  // Check all elements
+  for (const [elementId, coord] of coordinates) {
+    // Skip source and target themselves
+    if (coord === sourceCoord || coord === targetCoord) continue;
+    
+    // Check if element is in the vertical range
+    const elementBottom = coord.y + coord.height;
+    const elementTop = coord.y;
+    
+    // Element overlaps with vertical range?
+    if (elementBottom > minY && elementTop < maxY) {
+      // Element is in same X-column as target?
+      const elementLeft = coord.x;
+      const elementRight = coord.x + coord.width;
+      
+      if (Math.abs(elementLeft - targetX) < TOLERANCE || 
+          Math.abs(elementRight - targetX) < TOLERANCE ||
+          (elementLeft < targetX && elementRight > targetX)) {
+        // Obstacle found in vertical column
+        return false;
+      }
+    }
+  }
+  
+  return true; // Column is free
 }
 
 /**
  * Calculate waypoints for message flow with corridor-based navigation
  */
-function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, exitSide, entrySide, directions, laneBounds) {
+function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, exitSide, entrySide, directions, laneBounds, coordinates) {
   const waypoints = [];
   
   // Map exit/entry sides to direction constants
@@ -201,23 +238,38 @@ function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourc
     const corridorY = findNearestCorridor(sourceCoord.y, sourceCorridors, 'up');
     waypoints.push({ x: exitPoint.x, y: corridorY });
     
-    // Go to corridor left of source element (between source layer and previous layer)
-    const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
-    waypoints.push({ x: corridorX, y: corridorY });
-    
     // Navigate to entry corridor
     if (entrySide === 'up') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'up');
+      // For same-side routing (up→up), use horizontal corridor
+      const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+      waypoints.push({ x: corridorX, y: corridorY });
       waypoints.push({ x: corridorX, y: targetCorridorY });
-      // Move right to target X
       waypoints.push({ x: entryPoint.x, y: targetCorridorY });
     } else if (entrySide === 'down') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'down');
-      waypoints.push({ x: corridorX, y: targetCorridorY });
-      // Move right to target X
-      waypoints.push({ x: entryPoint.x, y: targetCorridorY });
+      
+      // OPTIMIZATION: Check if vertical column at target X is free
+      const columnFree = isVerticalColumnFree(entryPoint.x, corridorY, targetCorridorY, sourceCoord, targetCoord, coordinates);
+      
+      if (columnFree) {
+        // Direct vertical path: go straight up to target X-position
+        waypoints.push({ x: entryPoint.x, y: corridorY });
+        waypoints.push({ x: entryPoint.x, y: targetCorridorY });
+      } else {
+        // Horizontal routing: go left, up, then right
+        const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+        waypoints.push({ x: corridorX, y: corridorY });
+        waypoints.push({ x: corridorX, y: targetCorridorY });
+        waypoints.push({ x: entryPoint.x, y: targetCorridorY });
+      }
+    } else if (entrySide === 'left' || entrySide === 'right') {
+      // For horizontal entry, route via horizontal corridor
+      const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+      waypoints.push({ x: corridorX, y: corridorY });
+      waypoints.push({ x: corridorX, y: entryPoint.y });
     }
     
     waypoints.push(entryPoint);
@@ -228,23 +280,38 @@ function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourc
     const corridorY = findNearestCorridor(sourceCoord.y, sourceCorridors, 'down');
     waypoints.push({ x: exitPoint.x, y: corridorY });
     
-    // Go to corridor left of source element (between source layer and previous layer)
-    const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
-    waypoints.push({ x: corridorX, y: corridorY });
-    
     // Navigate to entry corridor
     if (entrySide === 'up') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'up');
-      waypoints.push({ x: corridorX, y: targetCorridorY });
-      // Move right to target X
-      waypoints.push({ x: entryPoint.x, y: targetCorridorY });
+      
+      // OPTIMIZATION: Check if vertical column at target X is free
+      const columnFree = isVerticalColumnFree(entryPoint.x, corridorY, targetCorridorY, sourceCoord, targetCoord, coordinates);
+      
+      if (columnFree) {
+        // Direct vertical path: go straight down to target X-position
+        waypoints.push({ x: entryPoint.x, y: corridorY });
+        waypoints.push({ x: entryPoint.x, y: targetCorridorY });
+      } else {
+        // Horizontal routing: go left, down, then right
+        const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+        waypoints.push({ x: corridorX, y: corridorY });
+        waypoints.push({ x: corridorX, y: targetCorridorY });
+        waypoints.push({ x: entryPoint.x, y: targetCorridorY });
+      }
     } else if (entrySide === 'down') {
       const targetCorridors = getCorridorsInLane(targetLaneBounds);
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'down');
+      // For same-side routing (down→down), use horizontal corridor
+      const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+      waypoints.push({ x: corridorX, y: corridorY });
       waypoints.push({ x: corridorX, y: targetCorridorY });
-      // Move right to target X
       waypoints.push({ x: entryPoint.x, y: targetCorridorY });
+    } else if (entrySide === 'left' || entrySide === 'right') {
+      // For horizontal entry, route via horizontal corridor
+      const corridorX = sourceCoord.x - LAYER_OFFSET / 2;
+      waypoints.push({ x: corridorX, y: corridorY });
+      waypoints.push({ x: corridorX, y: entryPoint.y });
     }
     
     waypoints.push(entryPoint);
