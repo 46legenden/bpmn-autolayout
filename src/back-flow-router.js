@@ -10,6 +10,7 @@
 import { isVerticalPathClear, isExitSideAvailable, getTargetVerticalPosition } from './path-checker.js';
 import { calculateConnectionPoint } from './phase3.js';
 import { routeManhattan } from './manhattan-router.js';
+import { routeBackFlowCascade } from './backflow-cascade-router.js';
 
 // Constants from phase3
 const CORRIDOR_OFFSET = 25;
@@ -46,9 +47,16 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   const rightAvailable = isExitSideAvailable(flowInfo.sourceId, directions.alongLane, flowInfos, flowInfo.flowId);
   const leftAvailable = isExitSideAvailable(flowInfo.sourceId, directions.oppAlongLane, flowInfos, flowInfo.flowId);
   
-  // Use unified Manhattan routing for all back-flows and message flows
-  // Works for both same-lane and cross-lane scenarios
-  return routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, corridorUsage, flowInfos, flowWaypoints);
+  // Check if this is a true back-flow (target layer < source layer)
+  const isBackFlow = targetPos.layer < sourcePos.layer;
+  
+  if (isBackFlow) {
+    // Use cascading routing strategy for back-flows
+    return routeBackFlowCascade(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, flowWaypoints);
+  } else {
+    // Use unified Manhattan routing for other flows
+    return routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, corridorUsage, flowInfos, flowWaypoints);
+  }
 }
 
 /**

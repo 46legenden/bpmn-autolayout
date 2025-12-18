@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                   id="Definitions_1" 
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="customer_pool" name="Customer Company" processRef="customer_process"/>
+    <bpmn:participant id="supplier_pool" name="Supplier Company" processRef="supplier_process"/>
+    <!-- Message Flows removed for testing -->
+  </bpmn:collaboration>
+  <!-- Customer Process -->
+  <bpmn:process id="customer_process" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_customer_sales" name="Sales Department">
+        <bpmn:flowNodeRef>start_customer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_request_quote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_review_quote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_send_order</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_customer_procurement" name="Procurement">
+        <bpmn:flowNodeRef>task_approve_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_negotiate</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_customer_finance" name="Finance">
+        <bpmn:flowNodeRef>task_receive_invoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_process_payment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_customer</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <!-- Sales Department -->
+    <bpmn:startEvent id="start_customer" name="Start"/>
+    <bpmn:task id="task_request_quote" name="Request Quote"/>
+    <bpmn:task id="task_review_quote" name="Review Quote"/>
+    <bpmn:task id="task_send_order" name="Send Order"/>
+    <!-- Procurement -->
+    <bpmn:task id="task_approve_order" name="Approve Order"/>
+    <bpmn:exclusiveGateway id="gateway_approved" name="Approved?"/>
+    <bpmn:task id="task_negotiate" name="Negotiate Terms"/>
+    <!-- Finance -->
+    <bpmn:task id="task_receive_invoice" name="Receive Invoice"/>
+    <bpmn:task id="task_process_payment" name="Process Payment"/>
+    <bpmn:endEvent id="end_customer" name="End"/>
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_c1" sourceRef="start_customer" targetRef="task_request_quote"/>
+    <bpmn:sequenceFlow id="flow_c2" sourceRef="task_request_quote" targetRef="task_review_quote"/>
+    <bpmn:sequenceFlow id="flow_c3" sourceRef="task_review_quote" targetRef="task_approve_order"/>
+    <bpmn:sequenceFlow id="flow_c4" sourceRef="task_approve_order" targetRef="gateway_approved"/>
+    <bpmn:sequenceFlow id="flow_c5" sourceRef="gateway_approved" targetRef="task_send_order" name="Yes"/>
+    <bpmn:sequenceFlow id="flow_c6" sourceRef="gateway_approved" targetRef="task_negotiate" name="No"/>
+    <bpmn:sequenceFlow id="flow_c7" sourceRef="task_negotiate" targetRef="task_request_quote"/>
+    <bpmn:sequenceFlow id="flow_c8" sourceRef="task_send_order" targetRef="task_receive_invoice"/>
+    <bpmn:sequenceFlow id="flow_c9" sourceRef="task_receive_invoice" targetRef="task_process_payment"/>
+    <bpmn:sequenceFlow id="flow_c10" sourceRef="task_process_payment" targetRef="end_customer"/>
+  </bpmn:process>
+  <!-- Supplier Process -->
+  <bpmn:process id="supplier_process" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_supplier_sales" name="Sales Department">
+        <bpmn:flowNodeRef>start_supplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_prepare_quote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_send_quote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_receive_order</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_supplier_warehouse" name="Warehouse">
+        <bpmn:flowNodeRef>task_check_inventory</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_in_stock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_prepare_shipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_send_confirmation</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_supplier_accounting" name="Accounting">
+        <bpmn:flowNodeRef>task_send_invoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_receive_confirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_supplier</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <!-- Sales Department -->
+    <bpmn:startEvent id="start_supplier" name="Start"/>
+    <bpmn:task id="task_prepare_quote" name="Prepare Quote"/>
+    <bpmn:task id="task_send_quote" name="Send Quote"/>
+    <bpmn:task id="task_receive_order" name="Receive Order"/>
+    <!-- Warehouse -->
+    <bpmn:task id="task_check_inventory" name="Check Inventory"/>
+    <bpmn:exclusiveGateway id="gateway_in_stock" name="In Stock?"/>
+    <bpmn:task id="task_prepare_shipment" name="Prepare Shipment"/>
+    <bpmn:task id="task_send_confirmation" name="Send Confirmation"/>
+    <!-- Accounting -->
+    <bpmn:task id="task_send_invoice" name="Send Invoice"/>
+    <bpmn:task id="task_receive_confirmation" name="Receive Confirmation"/>
+    <bpmn:endEvent id="end_supplier" name="End"/>
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_s1" sourceRef="start_supplier" targetRef="task_prepare_quote"/>
+    <bpmn:sequenceFlow id="flow_s2" sourceRef="task_prepare_quote" targetRef="task_send_quote"/>
+    <bpmn:sequenceFlow id="flow_s3" sourceRef="task_send_quote" targetRef="task_receive_order"/>
+    <bpmn:sequenceFlow id="flow_s4" sourceRef="task_receive_order" targetRef="task_check_inventory"/>
+    <bpmn:sequenceFlow id="flow_s5" sourceRef="task_check_inventory" targetRef="gateway_in_stock"/>
+    <bpmn:sequenceFlow id="flow_s6" sourceRef="gateway_in_stock" targetRef="task_prepare_shipment" name="Yes"/>
+    <bpmn:sequenceFlow id="flow_s7" sourceRef="gateway_in_stock" targetRef="task_prepare_quote" name="No"/>
+    <bpmn:sequenceFlow id="flow_s8" sourceRef="task_prepare_shipment" targetRef="task_send_confirmation"/>
+    <bpmn:sequenceFlow id="flow_s9" sourceRef="task_send_confirmation" targetRef="task_send_invoice"/>
+    <bpmn:sequenceFlow id="flow_s10" sourceRef="task_send_invoice" targetRef="task_receive_confirmation"/>
+    <bpmn:sequenceFlow id="flow_s11" sourceRef="task_receive_confirmation" targetRef="end_supplier"/>
+  </bpmn:process>
+    <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="Collaboration_1">
+      <bpmndi:BPMNShape id="customer_pool_di" bpmnElement="customer_pool" isHorizontal="true">
+        <dc:Bounds x="150" y="80" width="1830" height="540" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>      <bpmndi:BPMNShape id="supplier_pool_di" bpmnElement="supplier_pool" isHorizontal="true">
+        <dc:Bounds x="150" y="670" width="1830" height="540" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_customer_sales_di" bpmnElement="lane_customer_sales" isHorizontal="true">
+        <dc:Bounds x="180" y="80" width="1800" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_customer_procurement_di" bpmnElement="lane_customer_procurement" isHorizontal="true">
+        <dc:Bounds x="180" y="260" width="1800" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_customer_finance_di" bpmnElement="lane_customer_finance" isHorizontal="true">
+        <dc:Bounds x="180" y="440" width="1800" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_supplier_sales_di" bpmnElement="lane_supplier_sales" isHorizontal="true">
+        <dc:Bounds x="180" y="670" width="1800" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_supplier_warehouse_di" bpmnElement="lane_supplier_warehouse" isHorizontal="true">
+        <dc:Bounds x="180" y="850" width="1800" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_supplier_accounting_di" bpmnElement="lane_supplier_accounting" isHorizontal="true">
+        <dc:Bounds x="180" y="1030" width="1800" height="180" />
+      </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_customer">
+      <dc:Bounds x="262" y="152" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="252" y="193" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_supplier">
+      <dc:Bounds x="262" y="742" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="252" y="783" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_customer">
+      <dc:Bounds x="1662" y="512" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1652" y="553" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_supplier">
+      <dc:Bounds x="1862" y="1102" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1852" y="1143" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_request_quote">
+      <dc:Bounds x="430" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="420" y="105" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_review_quote">
+      <dc:Bounds x="630" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="105" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_send_order">
+      <dc:Bounds x="1030" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1020" y="215" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_approve_order">
+      <dc:Bounds x="630" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_negotiate">
+      <dc:Bounds x="1030" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1020" y="285" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_receive_invoice">
+      <dc:Bounds x="1230" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1220" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_process_payment">
+      <dc:Bounds x="1430" y="490" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1420" y="575" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_prepare_quote">
+      <dc:Bounds x="430" y="720" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="420" y="695" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_send_quote">
+      <dc:Bounds x="630" y="720" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="805" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_receive_order">
+      <dc:Bounds x="830" y="720" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="820" y="695" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_check_inventory">
+      <dc:Bounds x="830" y="900" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="820" y="985" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_prepare_shipment">
+      <dc:Bounds x="1230" y="900" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1220" y="985" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_send_confirmation">
+      <dc:Bounds x="1430" y="900" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1420" y="875" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_send_invoice">
+      <dc:Bounds x="1430" y="1080" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1420" y="1165" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_receive_confirmation">
+      <dc:Bounds x="1630" y="1080" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1620" y="1165" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_approved">
+      <dc:Bounds x="855" y="325" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="325" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_in_stock">
+      <dc:Bounds x="1055" y="915" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="990" y="915" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="flow_c1">
+      <di:waypoint x="298" y="170"/>
+      <di:waypoint x="430" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c2">
+      <di:waypoint x="530" y="170"/>
+      <di:waypoint x="630" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c3">
+      <di:waypoint x="680" y="210"/>
+      <di:waypoint x="680" y="310"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c4">
+      <di:waypoint x="730" y="350"/>
+      <di:waypoint x="855" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c5">
+      <di:waypoint x="880" y="325"/>
+      <di:waypoint x="880" y="170"/>
+      <di:waypoint x="1030" y="170"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="880" y="305" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c6">
+      <di:waypoint x="905" y="350"/>
+      <di:waypoint x="1030" y="350"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="895" y="330" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c7">
+      <di:waypoint x="1080" y="390"/>
+      <di:waypoint x="1080" y="415"/>
+      <di:waypoint x="480" y="415"/>
+      <di:waypoint x="480" y="210"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c8">
+      <di:waypoint x="1130" y="170"/>
+      <di:waypoint x="1280" y="170"/>
+      <di:waypoint x="1280" y="490"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c9">
+      <di:waypoint x="1330" y="530"/>
+      <di:waypoint x="1430" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_c10">
+      <di:waypoint x="1530" y="530"/>
+      <di:waypoint x="1662" y="530"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s1">
+      <di:waypoint x="298" y="760"/>
+      <di:waypoint x="430" y="760"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s2">
+      <di:waypoint x="530" y="760"/>
+      <di:waypoint x="630" y="760"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s3">
+      <di:waypoint x="730" y="760"/>
+      <di:waypoint x="830" y="760"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s4">
+      <di:waypoint x="880" y="800"/>
+      <di:waypoint x="880" y="900"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s5">
+      <di:waypoint x="930" y="940"/>
+      <di:waypoint x="1055" y="940"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s6">
+      <di:waypoint x="1105" y="940"/>
+      <di:waypoint x="1230" y="940"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1095" y="920" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s7">
+      <di:waypoint x="1080" y="965"/>
+      <di:waypoint x="1080" y="1005"/>
+      <di:waypoint x="480" y="1005"/>
+      <di:waypoint x="480" y="800"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1070" y="975" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s8">
+      <di:waypoint x="1330" y="940"/>
+      <di:waypoint x="1430" y="940"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s9">
+      <di:waypoint x="1480" y="980"/>
+      <di:waypoint x="1480" y="1080"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s10">
+      <di:waypoint x="1530" y="1120"/>
+      <di:waypoint x="1630" y="1120"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow_s11">
+      <di:waypoint x="1730" y="1120"/>
+      <di:waypoint x="1862" y="1120"/>
+    </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

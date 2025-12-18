@@ -405,6 +405,25 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
   const minLaneIndex = Math.min(sourceLaneIndex, targetLaneIndex);
   const maxLaneIndex = Math.max(sourceLaneIndex, targetLaneIndex);
   const laneIds = Array.from(lanes.keys());
+  
+  // Check if there are elements in intermediate lanes at the same layer as source
+  // If yes, target must be placed at a different layer to avoid flow-through-element
+  let hasElementInBetween = false;
+  for (let i = minLaneIndex + 1; i < maxLaneIndex; i++) {
+    const intermediateLaneId = laneIds[i];
+    // Check all positioned elements in this intermediate lane
+    for (const [elemId, elemPos] of positions) {
+      if (elementLanes.get(elemId) === intermediateLaneId && elemPos.layer === sourcePos.layer) {
+        hasElementInBetween = true;
+        if (DEBUG) console.log(`  → Element ${elemId} found in intermediate lane ${intermediateLaneId} at layer ${sourcePos.layer}`);
+        break;
+      }
+    }
+    if (hasElementInBetween) break;
+  }
+  
+  // If element in between, force target to next layer
+  const elementInBetweenOffset = hasElementInBetween ? 1 : 0;
 
   // Check if target has multiple inputs from the same direction
   // If so, target needs layer + 1 (symmetric to multi-output rule)
@@ -443,7 +462,9 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
   }
   
   // Find next free layer (checks both flow occupation and element occupation)
-  const proposedLayer = sourcePos.layer + multiInputOffset;
+  // Use maximum of multiInputOffset and elementInBetweenOffset
+  const offsetNeeded = Math.max(multiInputOffset, elementInBetweenOffset);
+  const proposedLayer = sourcePos.layer + offsetNeeded;
   const targetLayer = findFreeLayer(matrix, positions, lane, proposedLayer, targetId);
   
   if (DEBUG && targetLayer > proposedLayer) {
@@ -809,14 +830,9 @@ export function assignGatewayOutputPositions(gatewayId, sortedOutputFlowIds, pos
   const canUseOptimization = crossLaneFree && oppCrossLaneFree;
 
   // Determine layer offset for outputs
-  // Optimization (layerOffset=0) applies when:
-  // 1. Only single cross-lane forward-flow (compact layout), OR
-  // 2. Cross-lane outputs are symmetrically distributed (up AND down)
-  // AND both cross-lane sides are free (no inputs from those directions)
-  // AND no multiple outputs to the same target lane (would cause overlap)
-  // Otherwise use normal rule (layer + 1)
-  const shouldOptimize = !hasMultipleOutputsToSameLane && (hasSingleCrossLaneOutput || isSymmetricDistribution) && canUseOptimization;
-  const layerOffset = (crossLaneOutputs.length > 0 && shouldOptimize) ? 0 : 1;
+  // ALWAYS use layer + 1 for gateway outputs (except back-flows)
+  // This prevents flow-through-element collisions
+  const layerOffset = 1;
   
   const DEBUG_GW = process.env.DEBUG_GATEWAY === 'true';
   if (DEBUG_GW && gatewayId === 'gateway3_split') {
