@@ -68,6 +68,42 @@ export function findNearestCorridor(y, corridors, direction) {
 }
 
 /**
+ * Check if vertical path from corridor to target is clear
+ * @param {number} corridorY - Y position of corridor
+ * @param {Object} targetCoord - Target coordinates
+ * @param {Object} targetPos - Target position (lane, layer, row)
+ * @param {Map} positions - All element positions
+ * @param {Map} coordinates - All element coordinates
+ * @param {string} flowId - Current flow ID (to exclude from check)
+ * @returns {boolean} - True if path is clear
+ */
+function isVerticalPathToTargetClear(corridorY, targetCoord, targetPos, positions, coordinates, targetId) {
+  // Check if any elements are in the target column between corridor and target
+  const targetX = targetCoord.x + targetCoord.width / 2;
+  const minY = Math.min(corridorY, targetCoord.y);
+  const maxY = Math.max(corridorY, targetCoord.y + targetCoord.height);
+  
+  for (const [elementId, pos] of positions) {
+    // Skip the target element itself
+    if (elementId === targetId) continue;
+    
+    const coord = coordinates.get(elementId);
+    if (!coord) continue;
+    
+    // Check if element is in same column (layer)
+    if (pos.layer === targetPos.layer) {
+      // Check if element is between corridor and target
+      const elementCenterY = coord.y + coord.height / 2;
+      if (elementCenterY > minY && elementCenterY < maxY) {
+        return false; // Element blocks the path
+      }
+    }
+  }
+  
+  return true; // Path is clear
+}
+
+/**
  * Unified Manhattan routing for back-flows and message flows
  * Works for both same-lane and cross-lane scenarios
  * 
@@ -78,9 +114,11 @@ export function findNearestCorridor(y, corridors, direction) {
  * @param {Object} targetPos - Target position (lane, layer, row)
  * @param {Object} directions - Direction mappings
  * @param {Map} laneBounds - Lane boundaries
+ * @param {Map} positions - All element positions (for path checking)
+ * @param {Map} coordinates - All element coordinates (for path checking)
  * @returns {Array} - Waypoints
  */
-export function routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds) {
+export function routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates) {
   const waypoints = [];
   
   // Get lane bounds
@@ -111,20 +149,41 @@ export function routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, ta
   const corridorY = findNearestCorridor(sourceCoord.y, sourceCorridors, exitDirection);
   waypoints.push({ x: exitPoint.x, y: corridorY });
   
-  // Step 3: Move horizontally in corridor to target column
-  const targetX = targetCoord.x - LAYER_OFFSET / 2;
-  waypoints.push({ x: targetX, y: corridorY });
+  // Step 3: Move horizontally in corridor
+  // Check if we can go directly to target column or need to go left first
+  const targetCenterX = targetCoord.x + targetCoord.width / 2;
+  const canEnterDirectly = positions && coordinates && 
+    isVerticalPathToTargetClear(corridorY, targetCoord, targetPos, positions, coordinates, flowInfo.targetId);
   
-  // Step 4: Move vertically to target element level
-  const entryPoint = calculateConnectionPoint(targetCoord, directions.oppAlongLane);
-  waypoints.push({ x: targetX, y: entryPoint.y });
-  
-  // Step 5: Enter target from left
-  waypoints.push(entryPoint);
-  
-  // Update flowInfo entry side
-  if (flowInfo.target) {
-    flowInfo.target.entrySide = directions.oppAlongLane;
+  if (canEnterDirectly) {
+    // Optimized path: Go directly to target column, then enter from top/bottom
+    waypoints.push({ x: targetCenterX, y: corridorY });
+    
+    // Enter from top or bottom (depending on where we came from)
+    const entrySide = exitDirection === 'up' ? directions.crossLane : directions.oppCrossLane;
+    const entryPoint = calculateConnectionPoint(targetCoord, entrySide);
+    waypoints.push(entryPoint);
+    
+    // Update flowInfo entry side
+    if (flowInfo.target) {
+      flowInfo.target.entrySide = entrySide;
+    }
+  } else {
+    // Default path: Go left of target, then enter from left
+    const targetX = targetCoord.x - LAYER_OFFSET / 2;
+    waypoints.push({ x: targetX, y: corridorY });
+    
+    // Move vertically to target element level
+    const entryPoint = calculateConnectionPoint(targetCoord, directions.oppAlongLane);
+    waypoints.push({ x: targetX, y: entryPoint.y });
+    
+    // Enter target from left
+    waypoints.push(entryPoint);
+    
+    // Update flowInfo entry side
+    if (flowInfo.target) {
+      flowInfo.target.entrySide = directions.oppAlongLane;
+    }
   }
   
   return waypoints;

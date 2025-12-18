@@ -48,7 +48,7 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   
   // Use unified Manhattan routing for all back-flows and message flows
   // Works for both same-lane and cross-lane scenarios
-  return routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds);
+  return routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates);
 }
 
 /**
