@@ -315,8 +315,8 @@
     </bpmndi:BPMNEdge>
     <bpmndi:BPMNEdge bpmnElement="msg_quote">
       <di:waypoint x="680" y="213.33333333333334"/>
-      <di:waypoint x="680" y="375"/>
-      <di:waypoint x="380" y="375"/>
+      <di:waypoint x="680" y="240"/>
+      <di:waypoint x="380" y="240"/>
       <di:waypoint x="380" y="543.3333333333333"/>
       <di:waypoint x="430" y="543.3333333333333"/>
       <bpmndi:BPMNLabel>

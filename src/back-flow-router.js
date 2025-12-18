@@ -9,7 +9,7 @@
 
 import { isVerticalPathClear, isExitSideAvailable, getTargetVerticalPosition } from './path-checker.js';
 import { calculateConnectionPoint } from './phase3.js';
-import { routeSameLaneBackFlow } from './same-lane-back-flow.js';
+import { routeManhattan } from './manhattan-router.js';
 
 // Constants from phase3
 const CORRIDOR_OFFSET = 25;
@@ -46,49 +46,9 @@ export function routeBackFlowSmart(flowInfo, coordinates, positions, lanes, dire
   const rightAvailable = isExitSideAvailable(flowInfo.sourceId, directions.alongLane, flowInfos, flowInfo.flowId);
   const leftAvailable = isExitSideAvailable(flowInfo.sourceId, directions.oppAlongLane, flowInfos, flowInfo.flowId);
   
-  // Use different routing strategy for same-lane vs cross-lane
-  if (isSameLane) {
-    return routeSameLaneBackFlow(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, positions, coordinates, targetPosition, upAvailable, downAvailable, leftAvailable, rightAvailable, directions, flowInfos, laneBounds);
-  }
-  
-  // Cross-lane back-flow routing:
-  // Always use corridor-based routing to avoid collisions
-  // Route: down/up to corridor → left in corridor → up/down to target → right into target
-  
-  if (targetPosition === "above") {
-    // Target is above source: exit UP to nearest corridor, left, then UP to target
-    if (upAvailable) {
-      if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
-      return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "up", directions, positions, laneBounds);
-    }
-  } else if (targetPosition === "below") {
-    // Target is below source: exit DOWN to nearest corridor, left, then DOWN to target  
-    if (downAvailable) {
-      if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
-      return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
-    }
-  }
-  
-  // Fallback: if preferred exit not available, try opposite direction
-  if (targetPosition === "above" && downAvailable) {
-    if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
-    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
-  } else if (targetPosition === "below" && upAvailable) {
-    if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
-    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "up", directions, positions, laneBounds);
-  }
-  
-  // Last resort: use any available exit
-  if (upAvailable) {
-    if (flowInfo.source) flowInfo.source.exitSide = directions.oppCrossLane;
-    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "up", directions, positions, laneBounds);
-  } else if (downAvailable) {
-    if (flowInfo.source) flowInfo.source.exitSide = directions.crossLane;
-    return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
-  }
-  
-  // Should never reach here, but provide fallback
-  return routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, "down", directions, positions, laneBounds);
+  // Use unified Manhattan routing for all back-flows and message flows
+  // Works for both same-lane and cross-lane scenarios
+  return routeManhattan(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds);
 }
 
 /**
@@ -127,14 +87,9 @@ function routeCorridorPath(flowInfo, sourceCoord, targetCoord, sourcePos, target
       ? sourceCoord.y - 25
       : sourceCoord.y + sourceCoord.height + 25;
   } else {
-    // Corridor is 25px from lane edge (midway between task edge and lane boundary)
-    const CORRIDOR_FROM_LANE_EDGE = 25;
-    
-    corridorY = exitDirection === "up"
-      ? sourceLaneBounds.y + CORRIDOR_FROM_LANE_EDGE
-      : sourceLaneBounds.y + sourceLaneBounds.height - CORRIDOR_FROM_LANE_EDGE;
-    
-
+    // Use nearest corridor (between rows or at lane edge)
+    const corridors = getCorridorsInLane(sourceLaneBounds);
+    corridorY = findNearestCorridor(sourceCoord.y, corridors, exitDirection);
   }
   
   waypoints.push({ x: exitPoint.x, y: corridorY });

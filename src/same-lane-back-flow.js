@@ -11,6 +11,62 @@ import { calculateConnectionPoint } from './phase3.js';
 // Constants
 const CORRIDOR_OFFSET = 25;
 const LAYER_OFFSET = 100;
+const ELEMENT_HEIGHT = 80;
+
+/**
+ * Calculate all corridor Y-values in a lane
+ * @param {Object} laneBound - Lane bounds with y, height, maxRows
+ * @returns {Array} - Array of corridor Y-values
+ */
+export function getCorridorsInLane(laneBound) {
+  const maxRows = laneBound.maxRows || 1;
+  const referenceHeight = ELEMENT_HEIGHT;
+  const paddingPerGap = (laneBound.height - maxRows * referenceHeight) / (maxRows + 1);
+  
+  // Calculate all row center Y-values
+  const rowYs = [];
+  for (let row = 0; row < maxRows; row++) {
+    const rowY = laneBound.y + paddingPerGap + 
+      (row * (referenceHeight + paddingPerGap)) + 
+      referenceHeight / 2;
+    rowYs.push(rowY);
+  }
+  
+  // Calculate corridors between rows
+  const corridors = [];
+  
+  // Lane-top corridor
+  corridors.push(laneBound.y + CORRIDOR_OFFSET);
+  
+  // Corridors between rows
+  for (let i = 0; i < rowYs.length - 1; i++) {
+    corridors.push((rowYs[i] + rowYs[i + 1]) / 2);
+  }
+  
+  // Lane-bottom corridor
+  corridors.push(laneBound.y + laneBound.height - CORRIDOR_OFFSET);
+  
+  return corridors;
+}
+
+/**
+ * Find nearest corridor to a given Y position
+ * @param {number} y - Y position
+ * @param {Array} corridors - Array of corridor Y-values
+ * @param {string} direction - 'up' or 'down'
+ * @returns {number} - Nearest corridor Y-value
+ */
+export function findNearestCorridor(y, corridors, direction) {
+  if (direction === 'up') {
+    // Find nearest corridor above
+    const above = corridors.filter(c => c < y);
+    return above.length > 0 ? above[above.length - 1] : corridors[0];
+  } else {
+    // Find nearest corridor below
+    const below = corridors.filter(c => c > y);
+    return below.length > 0 ? below[0] : corridors[corridors.length - 1];
+  }
+}
 
 /**
  * Route same-lane back-flow with left-around preference
@@ -97,8 +153,9 @@ function routeUpLeftDownRight(sourceCoord, targetCoord, directions, laneBounds) 
   const exitPoint = calculateConnectionPoint(sourceCoord, directions.oppCrossLane);
   waypoints.push(exitPoint);
   
-  // Go up to corridor (lane top + offset)
-  const corridorY = laneBounds.y + CORRIDOR_OFFSET;
+  // Go up to nearest corridor
+  const corridors = getCorridorsInLane(laneBounds);
+  const corridorY = findNearestCorridor(sourceCoord.y, corridors, 'up');
   waypoints.push({
     x: exitPoint.x,
     y: corridorY
@@ -134,8 +191,9 @@ function routeDownLeftUpRight(sourceCoord, targetCoord, directions, laneBounds) 
   const exitPoint = calculateConnectionPoint(sourceCoord, directions.crossLane);
   waypoints.push(exitPoint);
   
-  // Go down to corridor (lane bottom - offset)
-  const corridorY = laneBounds.y + laneBounds.height - CORRIDOR_OFFSET;
+  // Go down to nearest corridor
+  const corridors = getCorridorsInLane(laneBounds);
+  const corridorY = findNearestCorridor(sourceCoord.y, corridors, 'down');
   waypoints.push({
     x: exitPoint.x,
     y: corridorY
@@ -178,8 +236,9 @@ function routeRightUpLeftRight(sourceCoord, targetCoord, directions, laneBounds)
     y: exitPoint.y
   });
   
-  // Go up to corridor (lane top + offset)
-  const corridorY = laneBounds.y + CORRIDOR_OFFSET;
+  // Go up to nearest corridor
+  const corridors = getCorridorsInLane(laneBounds);
+  const corridorY = findNearestCorridor(sourceCoord.y, corridors, 'up');
   waypoints.push({
     x: corridorX,
     y: corridorY
@@ -222,8 +281,9 @@ function routeRightDownLeftRight(sourceCoord, targetCoord, directions, laneBound
     y: exitPoint.y
   });
   
-  // Go down to corridor (lane bottom - offset)
-  const corridorY = laneBounds.y + laneBounds.height - CORRIDOR_OFFSET;
+  // Go down to nearest corridor
+  const corridors = getCorridorsInLane(laneBounds);
+  const corridorY = findNearestCorridor(sourceCoord.y, corridors, 'down');
   waypoints.push({
     x: corridorX,
     y: corridorY
