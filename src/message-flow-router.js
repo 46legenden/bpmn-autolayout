@@ -103,7 +103,6 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
   const availableExits = getAvailableExitSides(flowInfo.sourceId, sourceCoord, directions, flowWaypoints, flowInfo.flowId);
   const availableEntries = getAvailableEntrySides(flowInfo.targetId, targetCoord, directions, flowWaypoints, flowInfo.flowId);
   
-  
   // Determine vertical relationship (is target above or below source?)
   const targetAbove = targetCoord.y < sourceCoord.y;
   
@@ -136,6 +135,7 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
         exitSide, entrySide, directions, laneBounds, coordinates
       );
       
+      
       if (!waypoints || waypoints.length === 0) {
         continue;
       }
@@ -146,7 +146,6 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
         if (!hasCollision) {
           // Success! Use this routing
           return waypoints;
-        } else {
         }
       } else {
         // No collision detection - use first valid routing
@@ -168,7 +167,7 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
 /**
  * Check if vertical column at targetX is free of obstacles between sourceY and targetY
  */
-function isVerticalColumnFree(targetX, sourceY, targetY, sourceCoord, targetCoord, coordinates) {
+function isVerticalColumnFree(targetX, sourceY, targetY, sourceCoord, targetCoord, coordinates, debugFlowId) {
   if (!coordinates) return false;
   
   const minY = Math.min(sourceY, targetY);
@@ -252,7 +251,7 @@ function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourc
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'down');
       
       // OPTIMIZATION: Check if vertical column at target X is free
-      const columnFree = isVerticalColumnFree(entryPoint.x, corridorY, targetCorridorY, sourceCoord, targetCoord, coordinates);
+      const columnFree = isVerticalColumnFree(entryPoint.x, corridorY, targetCorridorY, sourceCoord, targetCoord, coordinates, flowInfo.flowId);
       
       if (columnFree) {
         // Direct vertical path: go straight up to target X-position
@@ -286,7 +285,7 @@ function calculateMessageFlowWaypoints(flowInfo, sourceCoord, targetCoord, sourc
       const targetCorridorY = findNearestCorridor(targetCoord.y, targetCorridors, 'up');
       
       // OPTIMIZATION: Check if vertical column at target X is free
-      const columnFree = isVerticalColumnFree(entryPoint.x, corridorY, targetCorridorY, sourceCoord, targetCoord, coordinates);
+      const columnFree = isVerticalColumnFree(entryPoint.x, corridorY, targetCorridorY, sourceCoord, targetCoord, coordinates, flowInfo.flowId);
       
       if (columnFree) {
         // Direct vertical path: go straight down to target X-position

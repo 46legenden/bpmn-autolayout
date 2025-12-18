@@ -622,9 +622,26 @@ export function detectBackEdges(graph) {
     recursionStack.delete(elementId);
   }
 
-  // Start DFS from all start events
+  // Start DFS from all start events and elements with no incoming sequence flows
+  // This includes startEvents, intermediateCatchEvents, and other entry points
   for (const [id, element] of elements) {
-    if (element.type === 'startEvent' && !visited.has(id)) {
+    if (!visited.has(id)) {
+      // Check if this element has no incoming sequence flows (only message flows or nothing)
+      const hasSequenceFlowInput = element.incoming.some(flowId => {
+        const flow = flows.get(flowId);
+        return flow && flow.type !== 'messageFlow';
+      });
+      
+      // Start DFS from elements with no sequence flow inputs
+      if (!hasSequenceFlowInput) {
+        dfs(id);
+      }
+    }
+  }
+  
+  // Also visit any remaining unvisited elements (disconnected components)
+  for (const [id] of elements) {
+    if (!visited.has(id)) {
       dfs(id);
     }
   }

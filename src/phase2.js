@@ -1828,6 +1828,33 @@ export function phase2(elements, flows, lanes, directions, backEdges, backFlows 
   const DEBUG = process.env.DEBUG_PHASE2 === 'true';
   if (DEBUG) console.log('\n=== FLOW PROCESSING ORDER ===');
   
+
+  
+  // Step 4.5: Initialize start elements (elements with no sequence flow inputs)
+  // These are elements that start a process chain (startEvents, message catch events, etc.)
+  for (const [elementId, element] of elements) {
+    // Count non-message-flow, non-back-flow inputs
+    const sequenceFlowInputs = element.incoming.filter(flowId => {
+      if (backEdgeSet.has(flowId)) return false;
+      const flow = flows.get(flowId);
+      if (flow && flow.type === 'messageFlow') return false;
+      return true;
+    });
+    
+    // If no sequence flow inputs, this is a start element
+    if (sequenceFlowInputs.length === 0 && element.outgoing.length > 0) {
+      if (!positions.has(elementId)) {
+        const elementLane = elementLanes.get(elementId);
+        positions.set(elementId, {
+          lane: elementLane,
+          layer: 0,
+          row: 0
+        });
+        if (DEBUG) console.log(`  Initialized start element: ${elementId} at layer 0`);
+      }
+    }
+  }
+  
   for (const [flowId, flow] of sortedFlows) {
     const sourceId = flow.sourceRef;
     const targetId = flow.targetRef;
@@ -1837,6 +1864,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, backFlows 
       if (DEBUG) console.log(`  ${flowId}: ${sourceId} -> ${targetId} (MESSAGE-FLOW - skipped)`);
       continue;
     }
+    
     
     // Check if this is a back-flow
     if (backEdgeSet.has(flowId)) {
