@@ -12,10 +12,10 @@
     
     <!-- Message Flows between pools -->
     <bpmn:messageFlow id="msg_flow_1" name="Quote Request" sourceRef="task_request_quote" targetRef="task_prepare_quote"/>
-    <!-- Testing one flow at a time -->
-    <!--
     <bpmn:messageFlow id="msg_flow_2" name="Quote" sourceRef="task_send_quote" targetRef="task_review_quote"/>
     <bpmn:messageFlow id="msg_flow_3" name="Order" sourceRef="task_send_order" targetRef="task_receive_order"/>
+    <!-- Testing three flows -->
+    <!--
     <bpmn:messageFlow id="msg_flow_4" name="Shipment Confirmation" sourceRef="task_send_confirmation" targetRef="task_receive_invoice"/>
     <bpmn:messageFlow id="msg_flow_5" name="Invoice" sourceRef="task_send_invoice" targetRef="task_receive_invoice"/>
     <bpmn:messageFlow id="msg_flow_6" name="Payment Confirmation" sourceRef="task_process_payment" targetRef="task_receive_confirmation"/>

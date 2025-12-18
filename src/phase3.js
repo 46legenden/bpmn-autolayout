@@ -1337,7 +1337,7 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
   
   // Check if this is a message flow
   if (flow.type === 'messageFlow') {
-    // Message flow → position label at first waypoint (flow start)
+    // Message flow → position label based on exit direction
     if (!waypoints || waypoints.length < 2) {
       return { x: 0, y: 0, width: 50, height: 20 };
     }
@@ -1345,16 +1345,42 @@ function calculateEdgeLabelPosition(flow, waypoints, elements, coordinates, flow
     const textLength = flow.name ? flow.name.length : 10;
     const LABEL_WIDTH = Math.max(50, textLength * 7 + 10);
     const LABEL_HEIGHT = 20;
-    const LABEL_OFFSET = 5;
+    const VERTICAL_OFFSET = 5;
+    const HORIZONTAL_OFFSET = 0; // Centered positioning
     
-    // Use first waypoint (where arrow exits the source event)
-    const wp1 = waypoints[0];
-    const HORIZONTAL_OFFSET = 10; // Small offset to the right
+    // Get exit point (first waypoint)
+    const exitPoint = waypoints[0];
     
-    // Position label above first waypoint, left-aligned with offset
+    // Get exit side from flowInfo
+    const exitSide = flowInfo?.source?.exitSide;
+    
+    let labelX, labelY;
+    
+    if (exitSide === 'up') {
+      // Up: a bit up + a bit right
+      labelX = exitPoint.x + HORIZONTAL_OFFSET;
+      labelY = exitPoint.y - LABEL_HEIGHT - VERTICAL_OFFSET;
+    } else if (exitSide === 'down') {
+      // Down: a bit down + a bit right
+      labelX = exitPoint.x + HORIZONTAL_OFFSET;
+      labelY = exitPoint.y + VERTICAL_OFFSET;
+    } else if (exitSide === 'right') {
+      // Right: a bit up + a bit right
+      labelX = exitPoint.x + HORIZONTAL_OFFSET;
+      labelY = exitPoint.y - LABEL_HEIGHT - VERTICAL_OFFSET;
+    } else if (exitSide === 'left') {
+      // Left: text width to the left + a bit up (should rarely happen)
+      labelX = exitPoint.x - LABEL_WIDTH;
+      labelY = exitPoint.y - LABEL_HEIGHT - VERTICAL_OFFSET;
+    } else {
+      // Fallback: above and to the right
+      labelX = exitPoint.x + HORIZONTAL_OFFSET;
+      labelY = exitPoint.y - LABEL_HEIGHT - VERTICAL_OFFSET;
+    }
+    
     return {
-      x: wp1.x + HORIZONTAL_OFFSET,
-      y: wp1.y - LABEL_HEIGHT - LABEL_OFFSET,
+      x: labelX,
+      y: labelY,
       width: LABEL_WIDTH,
       height: LABEL_HEIGHT
     };
