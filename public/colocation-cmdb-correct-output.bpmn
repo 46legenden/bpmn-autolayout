@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_colocation_cmdb_correct"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_colocation_cmdb_correct" isExecutable="false">
+    <!-- Lanes -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="lane_product_mgmt" name="Product Management">
+        <bpmn:flowNodeRef>start_product_setup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_define_products</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_define_addons</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_offerings</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_product_catalog</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_products_ready</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_sales" name="Sales">
+        <bpmn:flowNodeRef>start_customer_inquiry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_consult_customer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_check_catalog</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_select_products</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_order</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_provisioning" name="Provisioning">
+        <bpmn:flowNodeRef>task_review_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_check_ci_availability</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_cis_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_procure_cis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_rack</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_power</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_assign_network</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_service_links</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_service_status</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_service_deployed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_operations" name="Operations">
+        <bpmn:flowNodeRef>start_data_collection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_scada</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_ita</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_collect_facility</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_parallel_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_update_infrastructure_cis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_monitor_infrastructure</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>event_alert_detected</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_service_mgmt" name="Service Management">
+        <bpmn:flowNodeRef>task_receive_alert</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_impact_analysis</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_incident</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_notify_customers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_escalation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gateway_resolved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_incident_closed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <!-- Flow 1: Product Catalog Setup -->
+    <bpmn:startEvent id="start_product_setup" name="Setup Phase"/>
+    <bpmn:task id="task_define_products" name="Define Products&#10;(Rack, Cage)"/>
+    <bpmn:task id="task_define_addons" name="Define Add-ons&#10;(Power, Network)"/>
+    <bpmn:task id="task_create_offerings" name="Create Service&#10;Offerings"/>
+    <bpmn:task id="task_update_product_catalog" name="Update CMDB&#10;Product Catalog"/>
+    <bpmn:endEvent id="end_products_ready" name="Products Ready"/>
+    <bpmn:sequenceFlow id="flow1" sourceRef="start_product_setup" targetRef="task_define_products"/>
+    <bpmn:sequenceFlow id="flow2" sourceRef="task_define_products" targetRef="task_define_addons"/>
+    <bpmn:sequenceFlow id="flow3" sourceRef="task_define_addons" targetRef="task_create_offerings"/>
+    <bpmn:sequenceFlow id="flow4" sourceRef="task_create_offerings" targetRef="task_update_product_catalog"/>
+    <bpmn:sequenceFlow id="flow5" sourceRef="task_update_product_catalog" targetRef="end_products_ready"/>
+    <!-- Flow 2: Infrastructure Data Collection -->
+    <bpmn:startEvent id="start_data_collection" name="Data Collection"/>
+    <bpmn:parallelGateway id="gateway_parallel_split"/>
+    <bpmn:task id="task_collect_scada" name="Collect SCADA&#10;(Power, Cooling)"/>
+    <bpmn:task id="task_collect_ita" name="Collect ITA&#10;(Network, Cabling)"/>
+    <bpmn:task id="task_collect_facility" name="Collect Facility&#10;(Racks, Rooms)"/>
+    <bpmn:parallelGateway id="gateway_parallel_merge"/>
+    <bpmn:task id="task_update_infrastructure_cis" name="Update CMDB&#10;Infrastructure CIs"/>
+    <bpmn:task id="task_monitor_infrastructure" name="Monitor&#10;Infrastructure"/>
+    <bpmn:intermediateCatchEvent id="event_alert_detected" name="Alert"/>
+    <bpmn:sequenceFlow id="flow10" sourceRef="start_data_collection" targetRef="gateway_parallel_split"/>
+    <bpmn:sequenceFlow id="flow11" sourceRef="gateway_parallel_split" targetRef="task_collect_scada"/>
+    <bpmn:sequenceFlow id="flow12" sourceRef="gateway_parallel_split" targetRef="task_collect_ita"/>
+    <bpmn:sequenceFlow id="flow13" sourceRef="gateway_parallel_split" targetRef="task_collect_facility"/>
+    <bpmn:sequenceFlow id="flow14" sourceRef="task_collect_scada" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow15" sourceRef="task_collect_ita" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow16" sourceRef="task_collect_facility" targetRef="gateway_parallel_merge"/>
+    <bpmn:sequenceFlow id="flow17" sourceRef="gateway_parallel_merge" targetRef="task_update_infrastructure_cis"/>
+    <bpmn:sequenceFlow id="flow18" sourceRef="task_update_infrastructure_cis" targetRef="task_monitor_infrastructure"/>
+    <bpmn:sequenceFlow id="flow19" sourceRef="task_monitor_infrastructure" targetRef="event_alert_detected"/>
+    <!-- Flow 3: Customer Order to Service -->
+    <bpmn:startEvent id="start_customer_inquiry" name="Customer&#10;Inquiry"/>
+    <bpmn:task id="task_consult_customer" name="Consult&#10;Customer"/>
+    <bpmn:task id="task_check_catalog" name="Check Catalog&#10;(CMDB)"/>
+    <bpmn:task id="task_select_products" name="Select&#10;Products"/>
+    <bpmn:task id="task_create_order" name="Create Order"/>
+    <bpmn:task id="task_review_order" name="Review Order"/>
+    <bpmn:task id="task_check_ci_availability" name="Check CI&#10;Availability"/>
+    <bpmn:exclusiveGateway id="gateway_cis_available" name="CIs&#10;Available?"/>
+    <bpmn:task id="task_procure_cis" name="Procure CIs"/>
+    <bpmn:task id="task_assign_rack" name="Assign Rack"/>
+    <bpmn:task id="task_assign_power" name="Assign Power&#10;(PDU A/B)"/>
+    <bpmn:task id="task_assign_network" name="Assign Network&#10;Port"/>
+    <bpmn:task id="task_create_service_links" name="Create Service-CI&#10;Links (CMDB)"/>
+    <bpmn:task id="task_update_service_status" name="Update Service&#10;Status"/>
+    <bpmn:endEvent id="end_service_deployed" name="Service&#10;Deployed"/>
+    <bpmn:sequenceFlow id="flow20" sourceRef="start_customer_inquiry" targetRef="task_consult_customer"/>
+    <bpmn:sequenceFlow id="flow21" sourceRef="task_consult_customer" targetRef="task_check_catalog"/>
+    <bpmn:sequenceFlow id="flow22" sourceRef="task_check_catalog" targetRef="task_select_products"/>
+    <bpmn:sequenceFlow id="flow23" sourceRef="task_select_products" targetRef="task_create_order"/>
+    <bpmn:sequenceFlow id="flow24" sourceRef="task_create_order" targetRef="task_review_order"/>
+    <bpmn:sequenceFlow id="flow25" sourceRef="task_review_order" targetRef="task_check_ci_availability"/>
+    <bpmn:sequenceFlow id="flow26" sourceRef="task_check_ci_availability" targetRef="gateway_cis_available"/>
+    <bpmn:sequenceFlow id="flow27" name="Yes" sourceRef="gateway_cis_available" targetRef="task_assign_rack"/>
+    <bpmn:sequenceFlow id="flow27a" name="No" sourceRef="gateway_cis_available" targetRef="task_procure_cis"/>
+    <bpmn:sequenceFlow id="flow27b" sourceRef="task_procure_cis" targetRef="task_check_ci_availability"/>
+    <bpmn:sequenceFlow id="flow28" sourceRef="task_assign_rack" targetRef="task_assign_power"/>
+    <bpmn:sequenceFlow id="flow29" sourceRef="task_assign_power" targetRef="task_assign_network"/>
+    <bpmn:sequenceFlow id="flow30" sourceRef="task_assign_network" targetRef="task_create_service_links"/>
+    <bpmn:sequenceFlow id="flow31" sourceRef="task_create_service_links" targetRef="task_update_service_status"/>
+    <bpmn:sequenceFlow id="flow32" sourceRef="task_update_service_status" targetRef="end_service_deployed"/>
+    <!-- Flow 4: Incident Management (triggered by alert) -->
+    <bpmn:task id="task_receive_alert" name="Receive Alert"/>
+    <bpmn:task id="task_impact_analysis" name="Impact Analysis&#10;(CMDB)"/>
+    <bpmn:task id="task_create_incident" name="Create Incident"/>
+    <bpmn:task id="task_notify_customers" name="Notify&#10;Customers"/>
+    <bpmn:exclusiveGateway id="gateway_escalation" name="Escalate?"/>
+    <bpmn:exclusiveGateway id="gateway_resolved" name="Resolved?"/>
+    <bpmn:endEvent id="end_incident_closed" name="Incident&#10;Closed"/>
+    <bpmn:sequenceFlow id="flow40" sourceRef="event_alert_detected" targetRef="task_receive_alert"/>
+    <bpmn:sequenceFlow id="flow41" sourceRef="task_receive_alert" targetRef="task_impact_analysis"/>
+    <bpmn:sequenceFlow id="flow42" sourceRef="task_impact_analysis" targetRef="task_create_incident"/>
+    <bpmn:sequenceFlow id="flow43" sourceRef="task_create_incident" targetRef="task_notify_customers"/>
+    <bpmn:sequenceFlow id="flow44" sourceRef="task_notify_customers" targetRef="gateway_escalation"/>
+    <bpmn:sequenceFlow id="flow44a" name="Continue" sourceRef="gateway_escalation" targetRef="gateway_resolved"/>
+    <bpmn:sequenceFlow id="flow44b" name="Escalate" sourceRef="gateway_escalation" targetRef="task_consult_customer"/>
+    <bpmn:sequenceFlow id="flow45" name="Yes" sourceRef="gateway_resolved" targetRef="end_incident_closed"/>
+    <bpmn:sequenceFlow id="flow46" name="No" sourceRef="gateway_resolved" targetRef="task_impact_analysis"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="Collaboration_1">
+      <bpmndi:BPMNShape id="default_pool_di" bpmnElement="default_pool" isHorizontal="true">
+        <dc:Bounds x="150" y="80" width="2630" height="1320" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_product_mgmt_di" bpmnElement="lane_product_mgmt" isHorizontal="true">
+        <dc:Bounds x="180" y="80" width="2600" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_sales_di" bpmnElement="lane_sales" isHorizontal="true">
+        <dc:Bounds x="180" y="260" width="2600" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_provisioning_di" bpmnElement="lane_provisioning" isHorizontal="true">
+        <dc:Bounds x="180" y="440" width="2600" height="320" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_operations_di" bpmnElement="lane_operations" isHorizontal="true">
+        <dc:Bounds x="180" y="760" width="2600" height="460" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_service_mgmt_di" bpmnElement="lane_service_mgmt" isHorizontal="true">
+        <dc:Bounds x="180" y="1220" width="2600" height="180" />
+      </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_product_setup">
+      <dc:Bounds x="262" y="152" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="252" y="193" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_data_collection">
+      <dc:Bounds x="262" y="837" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="252" y="878" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="start_customer_inquiry">
+      <dc:Bounds x="262" y="332" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="252" y="373" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_products_ready">
+      <dc:Bounds x="1262" y="152" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1252" y="193" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_service_deployed">
+      <dc:Bounds x="2662" y="515.3333333333333" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2652" y="556.3333333333333" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end_incident_closed">
+      <dc:Bounds x="2662" y="1292" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2652" y="1333" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="event_alert_detected">
+      <dc:Bounds x="1462" y="837" width="36" height="36"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1452" y="812" width="56" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_define_products">
+      <dc:Bounds x="430" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="420" y="215" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_define_addons">
+      <dc:Bounds x="630" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="215" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_create_offerings">
+      <dc:Bounds x="830" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="820" y="215" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_update_product_catalog">
+      <dc:Bounds x="1030" y="130" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1020" y="215" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_collect_scada">
+      <dc:Bounds x="630" y="815" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="900" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_collect_ita">
+      <dc:Bounds x="630" y="950" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="1035" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_collect_facility">
+      <dc:Bounds x="630" y="1085" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="1170" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_update_infrastructure_cis">
+      <dc:Bounds x="1030" y="815" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1020" y="900" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_monitor_infrastructure">
+      <dc:Bounds x="1230" y="815" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1220" y="900" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_consult_customer">
+      <dc:Bounds x="430" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="420" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_check_catalog">
+      <dc:Bounds x="630" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="620" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_select_products">
+      <dc:Bounds x="830" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="820" y="395" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_create_order">
+      <dc:Bounds x="1030" y="310" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1020" y="285" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_review_order">
+      <dc:Bounds x="1030" y="493.33333333333326" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1020" y="578.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_check_ci_availability">
+      <dc:Bounds x="1230" y="493.33333333333326" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1220" y="578.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_procure_cis">
+      <dc:Bounds x="1630" y="626.6666666666666" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1620" y="601.6666666666666" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_assign_rack">
+      <dc:Bounds x="1630" y="493.33333333333326" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1620" y="578.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_assign_power">
+      <dc:Bounds x="1830" y="493.33333333333326" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1820" y="578.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_assign_network">
+      <dc:Bounds x="2030" y="493.33333333333326" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2020" y="578.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_create_service_links">
+      <dc:Bounds x="2230" y="493.33333333333326" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2220" y="578.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_update_service_status">
+      <dc:Bounds x="2430" y="493.33333333333326" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2420" y="578.3333333333333" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_receive_alert">
+      <dc:Bounds x="1430" y="1270" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1420" y="1355" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_impact_analysis">
+      <dc:Bounds x="1630" y="1270" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1620" y="1355" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_create_incident">
+      <dc:Bounds x="1830" y="1270" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1820" y="1355" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="task_notify_customers">
+      <dc:Bounds x="2030" y="1270" width="100" height="80"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2020" y="1355" width="120" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_cis_available">
+      <dc:Bounds x="1455" y="508.33333333333326" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1370" y="508.33333333333326" width="100" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_escalation">
+      <dc:Bounds x="2255" y="1285" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2190" y="1285" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_resolved">
+      <dc:Bounds x="2455" y="1285" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2390" y="1285" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_parallel_split">
+      <dc:Bounds x="455" y="830" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="390" y="830" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gateway_parallel_merge">
+      <dc:Bounds x="855" y="830" width="50" height="50"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="790" y="830" width="80" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="flow1">
+      <di:waypoint x="298" y="170"/>
+      <di:waypoint x="430" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow2">
+      <di:waypoint x="530" y="170"/>
+      <di:waypoint x="630" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow3">
+      <di:waypoint x="730" y="170"/>
+      <di:waypoint x="830" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow4">
+      <di:waypoint x="930" y="170"/>
+      <di:waypoint x="1030" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow5">
+      <di:waypoint x="1130" y="170"/>
+      <di:waypoint x="1262" y="170"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow10">
+      <di:waypoint x="298" y="855"/>
+      <di:waypoint x="455" y="855"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow11">
+      <di:waypoint x="505" y="855"/>
+      <di:waypoint x="630" y="855"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow12">
+      <di:waypoint x="480" y="880"/>
+      <di:waypoint x="480" y="990"/>
+      <di:waypoint x="630" y="990"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow13">
+      <di:waypoint x="480" y="880"/>
+      <di:waypoint x="480" y="1125"/>
+      <di:waypoint x="630" y="1125"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow14">
+      <di:waypoint x="730" y="855"/>
+      <di:waypoint x="855" y="855"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow15">
+      <di:waypoint x="730" y="990"/>
+      <di:waypoint x="880" y="990"/>
+      <di:waypoint x="880" y="880"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow16">
+      <di:waypoint x="730" y="1125"/>
+      <di:waypoint x="880" y="1125"/>
+      <di:waypoint x="880" y="880"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow17">
+      <di:waypoint x="905" y="855"/>
+      <di:waypoint x="1030" y="855"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow18">
+      <di:waypoint x="1130" y="855"/>
+      <di:waypoint x="1230" y="855"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow19">
+      <di:waypoint x="1330" y="855"/>
+      <di:waypoint x="1462" y="855"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow20">
+      <di:waypoint x="298" y="350"/>
+      <di:waypoint x="430" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow21">
+      <di:waypoint x="530" y="350"/>
+      <di:waypoint x="630" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow22">
+      <di:waypoint x="730" y="350"/>
+      <di:waypoint x="830" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow23">
+      <di:waypoint x="930" y="350"/>
+      <di:waypoint x="1030" y="350"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow24">
+      <di:waypoint x="1080" y="390"/>
+      <di:waypoint x="1080" y="493.33333333333326"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow25">
+      <di:waypoint x="1130" y="533.3333333333333"/>
+      <di:waypoint x="1230" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow26">
+      <di:waypoint x="1330" y="533.3333333333333"/>
+      <di:waypoint x="1455" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow27">
+      <di:waypoint x="1505" y="533.3333333333333"/>
+      <di:waypoint x="1630" y="533.3333333333333"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1495" y="513.3333333333333" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow27a">
+      <di:waypoint x="1480" y="558.3333333333333"/>
+      <di:waypoint x="1480" y="666.6666666666666"/>
+      <di:waypoint x="1630" y="666.6666666666666"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="1470" y="568.3333333333333" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow27b">
+      <di:waypoint x="1680" y="706.6666666666666"/>
+      <di:waypoint x="1680" y="735"/>
+      <di:waypoint x="1180" y="735"/>
+      <di:waypoint x="1180" y="533.3333333333333"/>
+      <di:waypoint x="1230" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow28">
+      <di:waypoint x="1730" y="533.3333333333333"/>
+      <di:waypoint x="1830" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow29">
+      <di:waypoint x="1930" y="533.3333333333333"/>
+      <di:waypoint x="2030" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow30">
+      <di:waypoint x="2130" y="533.3333333333333"/>
+      <di:waypoint x="2230" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow31">
+      <di:waypoint x="2330" y="533.3333333333333"/>
+      <di:waypoint x="2430" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow32">
+      <di:waypoint x="2530" y="533.3333333333333"/>
+      <di:waypoint x="2662" y="533.3333333333333"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow40">
+      <di:waypoint x="1480" y="873"/>
+      <di:waypoint x="1480" y="1270"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow41">
+      <di:waypoint x="1530" y="1310"/>
+      <di:waypoint x="1630" y="1310"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow42">
+      <di:waypoint x="1730" y="1310"/>
+      <di:waypoint x="1830" y="1310"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow43">
+      <di:waypoint x="1930" y="1310"/>
+      <di:waypoint x="2030" y="1310"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow44">
+      <di:waypoint x="2130" y="1310"/>
+      <di:waypoint x="2255" y="1310"/>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow44a">
+      <di:waypoint x="2305" y="1310"/>
+      <di:waypoint x="2455" y="1310"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2295" y="1290" width="66" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow44b">
+      <di:waypoint x="2280" y="1285"/>
+      <di:waypoint x="2280" y="1245"/>
+      <di:waypoint x="380" y="1245"/>
+      <di:waypoint x="380" y="350"/>
+      <di:waypoint x="430" y="350"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2280" y="1265" width="66" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow45">
+      <di:waypoint x="2505" y="1310"/>
+      <di:waypoint x="2662" y="1310"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2495" y="1290" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="flow46">
+      <di:waypoint x="2480" y="1335"/>
+      <di:waypoint x="2480" y="1375"/>
+      <di:waypoint x="1580" y="1375"/>
+      <di:waypoint x="1580" y="1310"/>
+      <di:waypoint x="1630" y="1310"/>
+      <bpmndi:BPMNLabel>
+        <dc:Bounds x="2470" y="1345" width="50" height="20" />
+      </bpmndi:BPMNLabel>
+    </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

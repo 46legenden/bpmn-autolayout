@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   id="Definitions_message_test"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <!-- Pool 1: Customer -->
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="pool_customer" name="Customer" processRef="Process_Customer" />
+    <bpmn:participant id="pool_supplier" name="Supplier" processRef="Process_Supplier" />
+    
+    <!-- Message Flow: Customer sends order to Supplier -->
+    <bpmn:messageFlow id="msg_flow_order" name="Order" sourceRef="task_send_order" targetRef="task_receive_order" />
+  </bpmn:collaboration>
+  
+  <!-- Process 1: Customer Process -->
+  <bpmn:process id="Process_Customer" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_customer_sales" name="Customer Sales">
+        <bpmn:flowNodeRef>start_customer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_create_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_send_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_receive_confirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_process_confirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_customer</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <bpmn:startEvent id="start_customer" name="Start" />
+    <bpmn:task id="task_create_order" name="Create Order" />
+    <bpmn:task id="task_send_order" name="Send Order" />
+    <bpmn:task id="task_receive_confirmation" name="Receive Confirmation" />
+    <bpmn:task id="task_process_confirmation" name="Process Confirmation" />
+    <bpmn:endEvent id="end_customer" name="End" />
+    
+    <bpmn:sequenceFlow id="flow_c1" sourceRef="start_customer" targetRef="task_create_order" />
+    <bpmn:sequenceFlow id="flow_c2" sourceRef="task_create_order" targetRef="task_send_order" />
+    <bpmn:sequenceFlow id="flow_c3" sourceRef="task_send_order" targetRef="task_receive_confirmation" />
+    <bpmn:sequenceFlow id="flow_c4" sourceRef="task_receive_confirmation" targetRef="task_process_confirmation" />
+    <bpmn:sequenceFlow id="flow_c5" sourceRef="task_process_confirmation" targetRef="end_customer" />
+  </bpmn:process>
+  
+  <!-- Process 2: Supplier Process -->
+  <bpmn:process id="Process_Supplier" isExecutable="false">
+    <bpmn:laneSet>
+      <bpmn:lane id="lane_supplier_fulfillment" name="Supplier Fulfillment">
+        <bpmn:flowNodeRef>start_supplier</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_receive_order</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_check_inventory</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_prepare_shipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>task_send_confirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_supplier</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    
+    <bpmn:startEvent id="start_supplier" name="Start" />
+    <bpmn:task id="task_receive_order" name="Receive Order" />
+    <bpmn:task id="task_check_inventory" name="Check Inventory" />
+    <bpmn:task id="task_prepare_shipment" name="Prepare Shipment" />
+    <bpmn:task id="task_send_confirmation" name="Send Confirmation" />
+    <bpmn:endEvent id="end_supplier" name="End" />
+    
+    <bpmn:sequenceFlow id="flow_s1" sourceRef="start_supplier" targetRef="task_receive_order" />
+    <bpmn:sequenceFlow id="flow_s2" sourceRef="task_receive_order" targetRef="task_check_inventory" />
+    <bpmn:sequenceFlow id="flow_s3" sourceRef="task_check_inventory" targetRef="task_prepare_shipment" />
+    <bpmn:sequenceFlow id="flow_s4" sourceRef="task_prepare_shipment" targetRef="task_send_confirmation" />
+    <bpmn:sequenceFlow id="flow_s5" sourceRef="task_send_confirmation" targetRef="end_supplier" />
+  </bpmn:process>
+  
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
+      <!-- Placeholder shapes - will be positioned by auto-layout -->
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

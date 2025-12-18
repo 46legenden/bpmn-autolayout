@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BPMN Static Viewer v3</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f5f5f5;
+    }
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+    .reload-btn {
+      padding: 8px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .reload-btn:hover { background: #0056b3; }
+    .info {
+      font-size: 12px;
+      color: #666;
+      margin-left: auto;
+    }
+    #canvas {
+      flex: 1;
+      background: white;
+    }
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      font-size: 16px;
+      color: #666;
+    }
+    .error {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      font-size: 16px;
+      color: #d9534f;
+      flex-direction: column;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>BPMN Auto-Layout Viewer v3 (External JS)</h1>
+    <button class="reload-btn" onclick="reloadDiagram()">🔄 Reload</button>
+    <span class="info">External script: viewer-app.js</span>
+  </div>
+  <div id="canvas">
+    <div class="loading">Initializing viewer...</div>
+  </div>
+
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+  <script src="viewer-app.js"></script>
+</body>
+</html>

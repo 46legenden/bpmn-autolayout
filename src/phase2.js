@@ -420,6 +420,7 @@ export function assignCrossLaneFreePosition(sourceId, targetId, positions, eleme
       for (const inFlowId of targetElement.incoming) {
         const inFlow = flows.get(inFlowId);
         if (!inFlow) continue;
+        if (inFlow.type === 'messageFlow') continue; // Skip message flows
         
         const inSourceLane = elementLanes.get(inFlow.sourceRef);
         if (!inSourceLane) continue;
@@ -1121,8 +1122,13 @@ function topologicalSortFlows(flows, elements, backEdgeSet = new Set()) {
   const outgoingFlows = new Map(); // element -> list of outgoing flow IDs
   
   for (const [elementId, element] of elements) {
-    // Count only non-back-flow inputs
-    const nonBackFlowInputs = element.incoming.filter(flowId => !backEdgeSet.has(flowId));
+    // Count only non-back-flow and non-message-flow inputs
+    const nonBackFlowInputs = element.incoming.filter(flowId => {
+      if (backEdgeSet.has(flowId)) return false;
+      const flow = flows.get(flowId);
+      if (flow && flow.type === 'messageFlow') return false; // Skip message flows
+      return true;
+    });
     inDegree.set(elementId, nonBackFlowInputs.length);
     outgoingFlows.set(elementId, []);
   }
@@ -1470,7 +1476,7 @@ function adjustLayersForMultipleCrossLaneInputs(positions, flows, elementLanes, 
   const allInputs = new Map();
   for (const [flowId, flow] of flows) {
     if (backEdgeSet.has(flowId)) continue; // Skip cycles
-    if (flow.type === 'messageFlow') continue; // Skip message flows
+    if (flow.type === 'messageFlow') continue; // Skip message flows in collision detection
     
     const targetId = flow.targetRef;
     if (!allInputs.has(targetId)) {
@@ -1809,6 +1815,12 @@ export function phase2(elements, flows, lanes, directions, backEdges, backFlows 
     const sourceId = flow.sourceRef;
     const targetId = flow.targetRef;
     
+    // Skip message flows - they don't affect positioning
+    if (flow.type === 'messageFlow') {
+      if (DEBUG) console.log(`  ${flowId}: ${sourceId} -> ${targetId} (MESSAGE-FLOW - skipped)`);
+      continue;
+    }
+    
     // Check if this is a back-flow
     if (backEdgeSet.has(flowId)) {
       // Back-flows are marked but not routed in Phase 2
@@ -2003,7 +2015,7 @@ export function phase2(elements, flows, lanes, directions, backEdges, backFlows 
     }
   }
   
-  // Step 5: Create FlowInfos for message flows (direct routing, no waypoints)
+  // Step 5: Create FlowInfos for message flows (treated as back-flows for routing)
   for (const [flowId, flow] of flows) {
     if (flow.type === 'messageFlow') {
       const sourceId = flow.sourceRef;
@@ -2013,13 +2025,13 @@ export function phase2(elements, flows, lanes, directions, backEdges, backFlows 
       const targetPos = positions.get(targetId);
       
       if (sourcePos && targetPos) {
-        // Create simple flowInfo for message flow
+        // Create flowInfo for message flow - marked as back-flow for corridor routing
         const flowInfo = {
           flowId,
           sourceId,
           targetId,
           isMessageFlow: true,
-          isBackFlow: false,
+          isBackFlow: true,  // Treat as back-flow for routing
           source: {
             lane: sourcePos.lane,
             layer: sourcePos.layer,
