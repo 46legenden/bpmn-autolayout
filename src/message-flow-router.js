@@ -10,6 +10,10 @@
 
 import { calculateConnectionPoint } from './phase3.js';
 import { hasWaypointCollision } from './waypoint-collision.js';
+import { buildRoutingGrid, routeWithGrid } from './grid-router.js';
+
+// Use grid-based routing (A* pathfinding)
+const USE_GRID_ROUTER = true;
 import { getCorridorsInLane, findNearestCorridor } from './manhattan-router.js';
 
 const CORRIDOR_OFFSET = 25;
@@ -31,11 +35,11 @@ function getAvailableExitSides(sourceId, sourceCoord, directions, flowWaypoints,
   
   const usedSides = new Set();
   
-  
   // Check all waypoints in all flows
-  for (const [flowId, waypoints] of flowWaypoints) {
+  if (flowWaypoints && flowWaypoints.size > 0) {
+    for (const [flowId, waypoints] of flowWaypoints) {
     if (flowId === currentFlowId) continue;
-    if (!waypoints || waypoints.length === 0) continue;
+    if (!waypoints || !Array.isArray(waypoints) || waypoints.length === 0) continue;
     
     // Check if any waypoint matches any connection point exactly
     for (const waypoint of waypoints) {
@@ -44,6 +48,7 @@ function getAvailableExitSides(sourceId, sourceCoord, directions, flowWaypoints,
           usedSides.add(side);
         }
       }
+    }
     }
   }
   
@@ -70,11 +75,11 @@ function getAvailableEntrySides(targetId, targetCoord, directions, flowWaypoints
   
   const usedSides = new Set();
   
-  
   // Check all waypoints in all flows
-  for (const [flowId, waypoints] of flowWaypoints) {
+  if (flowWaypoints && flowWaypoints.size > 0) {
+    for (const [flowId, waypoints] of flowWaypoints) {
     if (flowId === currentFlowId) continue;
-    if (!waypoints || waypoints.length === 0) continue;
+    if (!waypoints || !Array.isArray(waypoints) || waypoints.length === 0) continue;
     
     // Check if any waypoint matches any connection point exactly
     for (const waypoint of waypoints) {
@@ -83,6 +88,7 @@ function getAvailableEntrySides(targetId, targetCoord, directions, flowWaypoints
           usedSides.add(side);
         }
       }
+    }
     }
   }
   
@@ -98,6 +104,11 @@ function getAvailableEntrySides(targetId, targetCoord, directions, flowWaypoints
  * Route message flow with exit/entry checking and corridor navigation
  */
 export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, targetPos, directions, laneBounds, positions, coordinates, flowWaypoints, flowInfos) {
+  // Build grid for pathfinding if enabled
+  let gridData = null;
+  if (USE_GRID_ROUTER) {
+    gridData = buildRoutingGrid(laneBounds, coordinates);
+  }
   
   // Get available exit and entry sides
   const availableExits = getAvailableExitSides(flowInfo.sourceId, sourceCoord, directions, flowWaypoints, flowInfo.flowId);
@@ -130,10 +141,20 @@ export function routeMessageFlow(flowInfo, sourceCoord, targetCoord, sourcePos, 
       }
       
       // Try to route with this exit/entry combination
-      const waypoints = calculateMessageFlowWaypoints(
-        flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
-        exitSide, entrySide, directions, laneBounds, coordinates
-      );
+      let waypoints;
+      
+      if (USE_GRID_ROUTER && gridData) {
+        // Use grid-based routing
+        const exitPoint = calculateConnectionPoint(sourceCoord, exitSide);
+        const entryPoint = calculateConnectionPoint(targetCoord, entrySide);
+        waypoints = routeWithGrid(exitPoint, entryPoint, exitSide, entrySide, gridData);
+      } else {
+        // Use traditional routing
+        waypoints = calculateMessageFlowWaypoints(
+          flowInfo, sourceCoord, targetCoord, sourcePos, targetPos,
+          exitSide, entrySide, directions, laneBounds, coordinates
+        );
+      }
       
       
       if (!waypoints || waypoints.length === 0) {
